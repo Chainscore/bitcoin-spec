@@ -1,0 +1,45 @@
+\appendixsection{Mainnet Parameters}
+\label{app:parameters}
+
+This appendix collects network parameters and historical consensus exceptions
+that are inputs to \(\operatorname{Rules}(N,C,h,t)\). Mainnet is the default
+network for this specification.
+
+\subsection{Mainnet parameters}
+
+\begin{longtable}{@{}L{0.30\linewidth}L{0.58\linewidth}@{}}
+\toprule
+Parameter & Value \\
+\midrule
+Genesis hash & {\scriptsize\code{000000000019d6689c085ae165831e93}\newline\code{4ff763ae46a2a6c172b3f1b60a8ce26f}} \\
+Genesis Merkle root & {\scriptsize\code{4a5e1e4baab89f3a32518a88c31bc87f}\newline\code{618f76673e2cc77ab2127b7afdeda33b}} \\
+Message start & \code{f9 be b4 d9} \\
+Subsidy halving interval & \code{SUBSIDY\_HALVING\_INTERVAL} \\
+Proof-of-work target spacing & \code{TARGET\_SPACING} \\
+Proof-of-work target timespan & \code{TARGET\_TIMESPAN} \\
+Bech32 human-readable part & \code{bc} \\
+\bottomrule
+\end{longtable}
+
+Other networks, including testnet, testnet4, signet, and regtest, have distinct
+genesis blocks, proof-of-work limits, retargeting exceptions, message-start
+bytes, ports, address prefixes, and activation parameters. Their rules are not
+inferred from mainnet.
+
+\subsection{Historical exceptions}
+
+\begin{longtable}{@{}L{0.28\linewidth}L{0.60\linewidth}@{}}
+\toprule
+Exception & Rule \\
+\midrule
+Genesis coinbase & The genesis block's coinbase transaction is part of the block history but its output is not inserted into \(U\) by normal block connection. \\
+BIP30 duplicates & Historical duplicate-transaction cases are handled by the BIP30 no-overwrite rule and its deployed exceptions. Outside those exceptions, creating an output whose outpoint is already unspent is invalid. \\
+Buried activations & Mainnet rules whose activation heights are buried in contemporary software are represented by \(\operatorname{Rules}(N,C,h,t)\), not by live versionbits state. \\
+Future-dated blocks & A block whose timestamp is more than \code{MAX\_FUTURE\_BLOCK\_TIME} after the node's current clock is temporarily ineligible for active validation, not permanently invalid. \\
+\bottomrule
+\end{longtable}
+
+Signet uses a block signature challenge in the witness commitment payload.
+Testnet4 and regtest can enforce BIP94 timewarp mitigation through network
+parameters; mainnet does not set that parameter in the Bitcoin Core 31.0
+baseline \cite{bip-0030,bip-0034,bip-0094,bip-0325,bitcoin-core-v31}.

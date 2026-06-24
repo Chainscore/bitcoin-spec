@@ -1,0 +1,33 @@
+aux/
+protocol.ver
+.DS_Store
+tmp/
+out/
+
+# LaTeX build byproducts
+*.aux
+*.bbl
+*.blg
+*.bcf
+*.dvi
+*.fdb_latexmk
+*.fls
+*.ilg
+*.ind
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.ps
+*.run.xml
+*.snm
+*.synctex.gz
+*.synctex(busy)
+*.toc
+*.vrb
+*.xdv
+
+# Accidental root-level PDF builds. The canonical PDFs live under rendered/.
+/protocol.pdf
+/protocol-dark.pdf

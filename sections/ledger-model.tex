@@ -1,0 +1,121 @@
+\section{Ledger Model}
+\label{sec:ledger-model}
+
+Bitcoin validation is modeled as deterministic state transition over a
+proof-of-work header graph, available block data, and the active UTXO set. This
+section fixes the shared relations used by later sections.
+
+\subsection{State}
+
+A full-validation node's protocol state is:
+
+\[
+  S = (C,H,B,U,Q,\Pi)
+\]
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.24\linewidth}L{0.50\linewidth}@{}}
+\toprule
+Symbol & Type & Meaning \\
+\midrule
+\(C\) & \code{ActiveChain} & Ordered sequence of connected blocks from genesis to the active tip. \\
+\(H\) & \code{HeaderIndex} & Known block-header graph keyed by block hash, including height, predecessor, target, timestamp, and accumulated work. \\
+\(B\) & \code{BlockDataSet} & Full block data known to the node, keyed by block hash. \\
+\(U\) & \code{UTXOSet} & Map from unspent outpoints to coin records at the active-chain tip. \\
+\(Q\) & \code{Mempool} & Locally accepted unconfirmed transactions. This is relay state, not consensus state. \\
+\(\Pi\) & \code{PeerSet} & Connected-peer state and negotiated network capabilities. \\
+\bottomrule
+\end{longtable}
+
+Consensus validation reads \(C,H,B,U\) and mutates only \(C,H,B,U\). Mempool
+and peer transitions read consensus state but do not define block validity.
+
+\subsection{Coins}
+
+The UTXO set maps outpoints to coins:
+
+\[
+  U[(txid,n)] = (value, scriptPubKey, height, coinbase).
+\]
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.24\linewidth}L{0.42\linewidth}@{}}
+\toprule
+Coin field & Type & Meaning \\
+\midrule
+\code{value} & \code{Amount} & Output amount in satoshis. Consensus-valid values are in the money range. \\
+\code{scriptPubKey} & \code{Script} & Locking script committed by the creating transaction output. \\
+\code{height} & \code{uint32} & Active-chain height of the creating transaction. \\
+\code{coinbase} & \code{bool} & True iff the creating transaction is the block coinbase. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Rule context}
+
+Let \(N\) be the selected network parameter set. For candidate height \(h\),
+candidate block time \(t\), and active chain \(C\), define:
+
+\[
+  R = \operatorname{Rules}(N,C,h,t).
+\]
+
+\(R\) is the set of consensus rules active for the candidate object. It includes
+network constants, buried activation heights, versionbits state, timestamp
+rules, and script flags. Later sections use \(R\) rather than restating whether
+P2SH, BIP34, strict DER, locktime, sequence locks, SegWit, Taproot, Tapscript,
+or network-specific timewarp mitigations are active.
+
+\subsection{Validity classes}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.64\linewidth}@{}}
+\toprule
+Class & Meaning \\
+\midrule
+\(\operatorname{DecodeValid}_{T}(b)\) & \(\mathrm{E}_{T}^{-1}(b)\) succeeds and consumes a canonical encoding of type \(T\). \\
+\(\operatorname{FormValid}(x)\) & Object \(x\) is internally well-formed independent of chain state. \\
+\(\operatorname{ContextValid}_{R}(x,C)\) & Object \(x\) satisfies height, time, and active-rule predicates under \(R\). \\
+\(\operatorname{StateValid}_{R}(x,U)\) & Object \(x\) is valid against the current spendable coin set. \\
+\(\operatorname{RelayValid}_{P}(x,Q,U)\) & Object \(x\) is accepted by local relay policy. This is not a consensus predicate. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Transition relations}
+
+For a non-coinbase transaction, the transaction transition is:
+
+\[
+  \operatorname{ApplyTx}(R,U,tx) =
+  \begin{cases}
+    U', & \text{if } tx \text{ is valid against } U \text{ under } R,\\
+    \bot, & \text{otherwise.}
+  \end{cases}
+\]
+
+For a block \(B_h\) at height \(h\), block connection is:
+
+\[
+  \operatorname{ConnectBlock}(R,(C,U),B_h) =
+  \begin{cases}
+    (C',U'), & \text{if every block and transaction predicate succeeds,}\\
+    \bot, & \text{otherwise.}
+  \end{cases}
+\]
+
+Header acceptance, block-data acceptance, chain selection, and reorganization
+are the consensus transitions defined in Section~\ref{sec:consensus}. Mempool
+admission is the local transition defined in Section~\ref{sec:mempool}.
+
+\subsection{Invariants}
+
+Every accepted active-chain transition preserves:
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.64\linewidth}@{}}
+\toprule
+Invariant & Statement \\
+\midrule
+Determinism & For fixed \(N,C,U,B_h\), successful connection produces a unique \(C',U'\). \\
+Outpoint uniqueness & At any active tip, each outpoint appears at most once in \(U\). \\
+No double spend & A connected transaction consumes each input outpoint at most once, and a connected block consumes each live outpoint at most once. \\
+Conservation & A non-coinbase transaction cannot create value: \(\sum outputs(tx) \le \sum spent(tx)\). \\
+Issuance bound & For each connected block, \(\sum outputs(coinbase) \le subsidy(h)+\sum fees(B_h)\). \\
+Work selection & The active chain is selected from valid candidates by greatest accumulated work. \\
+\bottomrule
+\end{longtable}

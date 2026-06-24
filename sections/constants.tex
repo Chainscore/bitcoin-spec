@@ -1,0 +1,43 @@
+\appendixsection{Constants}
+\label{app:constants}
+
+\begin{longtable}{@{}L{0.56\linewidth}L{0.34\linewidth}@{}}
+\toprule
+Constant & Value \\
+\midrule
+\code{COIN} & 100,000,000 satoshis \\
+\code{MAX\_MONEY} & 21,000,000 \(\cdot\) \code{COIN} \\
+\code{WITNESS\_SCALE\_FACTOR} & 4 \\
+\code{MAX\_BLOCK\_WEIGHT} & 4,000,000 weight units \\
+\code{MAX\_BLOCK\_SIGOPS\_COST} & 80,000 \\
+\code{COINBASE\_MATURITY} & 100 blocks \\
+\code{SUBSIDY\_HALVING\_INTERVAL} & 210,000 blocks \\
+\code{NULL\_TXID} & \(0^{256}\) \\
+\code{NULL\_INDEX} & \code{0xffffffff} \\
+\code{COINBASE\_SCRIPTSIG\_MIN} & 2 bytes \\
+\code{COINBASE\_SCRIPTSIG\_MAX} & 100 bytes \\
+\code{LOCKTIME\_THRESHOLD} & 500,000,000 \\ 
+\code{SEQUENCE\_FINAL} & \code{0xffffffff} \\
+\code{SEQUENCE\_LOCKTIME\_DISABLE\_FLAG} & \(1 \ll 31\) \\
+\code{SEQUENCE\_LOCKTIME\_TYPE\_FLAG} & \(1 \ll 22\) \\
+\code{SEQUENCE\_LOCKTIME\_MASK} & \code{0x0000ffff} \\
+\code{SEQUENCE\_LOCKTIME\_GRANULARITY} & 512 seconds \\
+\code{MAX\_SCRIPT\_ELEMENT\_SIZE} & 520 bytes \\
+\code{MAX\_SCRIPT\_SIZE} & 10,000 bytes \\
+\code{MAX\_OPS\_PER\_SCRIPT} & 201 \\
+\code{MAX\_STACK\_SIZE} & 1,000 items \\
+\code{MAX\_SCRIPT\_NUM\_SIZE} & 4 bytes \\
+\code{MAX\_LOCKTIME\_NUM\_SIZE} & 5 bytes \\
+\code{MAX\_PUBKEYS\_PER\_MULTISIG} & 20 \\
+\code{TAPSCRIPT\_SIGOPS\_BUDGET\_BASE} & 50 \\
+\code{TAPSCRIPT\_SIGOPS\_COST} & 50 \\
+\code{TARGET\_SPACING} & 600 seconds \\
+\code{TARGET\_TIMESPAN} & 1,209,600 seconds \\
+\code{DIFFICULTY\_ADJUSTMENT\_INTERVAL} & 2,016 blocks \\
+\code{MAX\_RETARGET\_FACTOR} & 4 \\
+\code{MAX\_FUTURE\_BLOCK\_TIME} & 7,200 seconds \\
+\code{BIP94\_TIMEWARP\_GRACE} & 600 seconds \\
+\bottomrule
+\end{longtable}
+
+These constants are specified by deployed BIPs and Bitcoin Core consensus \cite{bip-0068,bip-0094,bip-0112,bip-0113,bip-0141,bip-0342,bitcoin-core-v31}.

@@ -1,0 +1,115 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{etoolbox}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{microtype}
+\usepackage{nameref}
+\usepackage{parskip}
+\usepackage{tabularx}
+\usepackage[table,dvipsnames]{xcolor}
+\usepackage{pagecolor}
+\usepackage[numbers]{natbib}
+\input{macros}
+\InputIfFileExists{protocol.ver}{}{}
+\applytheme
+\usepackage[
+  unicode,
+  bookmarksnumbered,
+  bookmarksopen,
+  colorlinks=true,
+  linktoc=all,
+  linkcolor=linkcolor,
+  urlcolor=urlcolor,
+  citecolor=citecolor
+]{hyperref}
+
+\hypersetup{
+  pdftitle={Bitcoin Protocol Specification},
+  pdfauthor={Prasad Kumkar, Chainscore Labs, Pune, India},
+  pdfsubject={Bitcoin protocol specification},
+  pdfkeywords={Bitcoin, protocol, specification, consensus, BIP}
+}
+
+\title{Bitcoin Protocol Specification}
+\author{Prasad Kumkar\\Chainscore Labs\\Pune, India}
+\date{Last updated June 25, 2026}
+
+\begin{document}
+
+\hypersetup{pageanchor=false}
+\newgeometry{margin=0in}
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\vspace*{0.62in}
+
+{\LARGE\bfseries Bitcoin Protocol Specification\par}
+\vspace{0.20in}
+{\large Prasad Kumkar\par}
+\vspace{-0.05in}
+{\normalsize prasad@chainscorelabs.com\par}
+\vspace{-0.05in}
+{\normalsize Pune, INDIA\par}
+\vspace{0.13in}
+{\small Updated: June 25, 2026\par}
+
+\vspace{0.34in}
+\noindent\makebox[\paperwidth][c]{%
+\iftoggle{darkmode}
+  {\includegraphics[width=\paperwidth]{assets/bitcoin-core-code-cover-dark.png}}
+  {\includegraphics[width=\paperwidth]{assets/bitcoin-core-code-cover-light.png}}%
+}
+
+\vspace{0.46in}
+\begin{minipage}{0.72\paperwidth}
+\small
+\centering
+\textbf{Abstract.}
+
+Bitcoin is the peer-to-peer electronic cash protocol and a payment network introduced by Satoshi Nakamoto. This document provides a technical reference and a consolidated knowledge base for the Bitcoin protocol. It is intended to be helpful for Bitcoin-based applications, node clients, and other infrastructure development within the ecosystem. It covers most of the modules implemented by contemporary full nodes: consensus rules, primitive data structures, serialization, peer networking, and relay behavior.
+
+\end{minipage}
+
+\vfill
+\vspace*{0.58in}
+\end{titlepage}
+\restoregeometry
+\hypersetup{pageanchor=true}
+\iftoggle{darkmode}{\pagestyle{empty}}{}
+
+\tableofcontents
+\newpage
+
+\input{sections/introduction}
+\input{sections/notation}
+\input{sections/serialization}
+\input{sections/ledger-model}
+\input{sections/transactions}
+\input{sections/script}
+\input{sections/blocks}
+\input{sections/pow}
+\input{sections/consensus}
+\input{sections/mempool}
+\input{sections/p2p}
+\input{sections/acknowledgements}
+
+\appendix
+\newpage
+\input{sections/constants}
+\newpage
+\input{sections/parameters}
+\newpage
+\input{sections/rpc}
+
+\bibliographystyle{plain}
+\bibliography{bitcoin}
+
+\end{document}

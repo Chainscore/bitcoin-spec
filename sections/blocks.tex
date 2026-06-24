@@ -1,0 +1,134 @@
+\section{Blocks}
+\label{sec:blocks}
+
+A block is a header plus an ordered transaction vector. The header commits to
+the previous block header, transaction Merkle root, timestamp, target encoding,
+and nonce. The transaction vector begins with exactly one coinbase transaction.
+
+\subsection{Block header}
+
+A serialized \code{BlockHeader} is exactly 80 bytes in the field order shown:
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.18\linewidth}L{0.22\linewidth}L{0.32\linewidth}@{}}
+\toprule
+\multicolumn{4}{@{}l}{\textbf{\code{BlockHeader}}} \\
+\midrule
+Field & Type & Encoding & Meaning \\
+\midrule
+\code{version} & \code{int32} & 4 little-endian bytes & Block version. Version bits use the high-bit pattern defined by \bip{9}. \\
+{\small\code{previous}\newline\code{BlockHash}} & \code{uint256} & 32 bytes & Double-SHA256 hash of the previous block header in protocol byte order. \\
+\code{merkleRoot} & \code{uint256} & 32 bytes & Merkle root of transaction identifiers. Witness data is committed separately. \\
+\code{time} & \code{uint32} & 4 little-endian bytes & Miner-supplied Unix timestamp. \\
+\code{bits} & \code{uint32} & 4 little-endian bytes & Compact proof-of-work target encoding. \\
+\code{nonce} & \code{uint32} & 4 little-endian bytes & Nonce varied during proof-of-work search. \\
+\bottomrule
+\end{longtable}
+
+For a block \(B\), \(\mathrm{bh}(B)=\mathrm{bh}(B.\text{\code{header}})\).
+
+\subsection{Block record}
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.20\linewidth}L{0.22\linewidth}L{0.30\linewidth}@{}}
+\toprule
+\multicolumn{4}{@{}l}{\textbf{\code{Block}}} \\
+\midrule
+Field & Type & Encoding & Meaning \\
+\midrule
+\code{header} & \code{BlockHeader} & 80 bytes & Serialized block header. \\
+\code{txCount} & \code{compactSize} & CompactSize & Number of serialized transactions. \\
+\code{transactions} & {\small\code{vector<}\newline\code{Transaction>}} & transaction encodings in order & First transaction must be coinbase; all later transactions must not be coinbase. \\
+\bottomrule
+\end{longtable}
+
+When witness data is present, block serialization includes each transaction's
+witness serialization for relay and block-weight computation. The transaction
+identifier Merkle root continues to use \code{txid}, not \code{wtxid}.
+
+\subsection{Merkle root}
+
+For a block transaction vector \([tx_0,\ldots,tx_{n-1}]\), define:
+
+\[
+  L = [txid(tx_0), txid(tx_1), \ldots, txid(tx_{n-1})].
+\]
+
+A block commits to \(\mathrm{MR}(L)\). A block with empty \(L\) is invalid.
+
+During root computation, a node rejects the duplicated-subtree mutation case:
+if two identical hashes are paired at a level before an odd-last duplication
+step, the block is invalid as mutated
+\cite{bitcoin-core-v31}.
+
+\subsection{Coinbase transaction}
+
+The first transaction in each block is the coinbase transaction. It is the only
+transaction permitted to have a null prevout. No other transaction in a block
+may be coinbase. The coinbase creates the block subsidy and collects transaction
+fees; its total output value must not exceed subsidy plus fees when the block is
+connected.
+
+\(\operatorname{Rules}(N,C,h,t)\) determines whether the candidate height must
+be serialized at the beginning of the coinbase \code{scriptSig}
+\cite{bip-0034,bitcoin-core-v31}.
+
+\subsection{Witness commitment}
+
+If \(R=\operatorname{Rules}(N,C,h,t)\) includes SegWit and any transaction has
+witness data, the coinbase must commit to the witness Merkle root. The witness
+tree leaves are:
+
+\[
+  W = [0^{256}, wtxid(tx_1), \ldots, wtxid(tx_{n-1})].
+\]
+
+The coinbase input witness contains a 32-byte reserved value \(r\). The
+witness commitment is:
+
+\[
+  wc = \mathrm{H}(\mathrm{MR}(W) || r).
+\]
+
+The commitment appears in a coinbase output whose script begins with the
+SegWit commitment header. If multiple outputs match, the highest-index matching
+output is used \cite{bip-0141}.
+
+\subsection{Context-free block checks}
+
+\begin{longtable}{@{}L{0.28\linewidth}L{0.60\linewidth}@{}}
+\toprule
+Check & Rule \\
+\midrule
+Transaction count & The block contains at least one transaction. \\
+Transaction count weight & \code{txCount * WITNESS\_SCALE\_FACTOR <= MAX\_BLOCK\_WEIGHT}. \\
+Coinbase position & Transaction zero is coinbase; no later transaction is coinbase. \\
+Merkle root & Header \code{merkleRoot} equals \(\mathrm{MR}(L)\) and is not mutated. \\
+Stripped size & \code{strippedSize(block) * WITNESS\_SCALE\_FACTOR <= MAX\_BLOCK\_WEIGHT}. \\
+Transaction validity & Every transaction passes context-free transaction checks. \\
+Legacy sigops & \code{legacySigOps(block) * WITNESS\_SCALE\_FACTOR <= MAX\_BLOCK\_SIGOPS\_COST}. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Contextual block checks}
+
+For a candidate block at height \(h\) extending chain \(C\), the previous block
+is \(C[h-1]\), and \(R=\operatorname{Rules}(N,C,h,\code{time})\).
+
+\begin{longtable}{@{}L{0.28\linewidth}L{0.60\linewidth}@{}}
+\toprule
+Check & Rule \\
+\midrule
+Previous header & The previous header exists and is valid for extension. \\
+Median time & \code{time} is greater than \(\operatorname{MTP}(C,h-1)\). \\
+Future time & A node does not accept the block while \code{time} is more than \code{MAX\_FUTURE\_BLOCK\_TIME} after the node's current clock time; this is temporary future status, not permanent consensus invalidity. \\
+BIP94 timewarp & On networks enforcing BIP94, the first block of each difficulty-adjustment interval except genesis must have \code{time >= previous.time - BIP94\_TIMEWARP\_GRACE}. \\
+Difficulty & \code{bits} encodes the target required for the height and network. \\
+Finality & All transactions satisfy \(\operatorname{AbsFinal}(tx,h,t)\), where \(t=\operatorname{MTP}(C,h-1)\) if \(R\) includes BIP113 and the candidate block time otherwise. \\
+Coinbase height & If \(R\) includes BIP34, the block commits to the correct height in the coinbase. \\
+Witness commitment & If \(R\) includes SegWit and the block has witness data, the block contains the correct coinbase witness commitment. \\
+Weight & Block weight is at most \code{MAX\_BLOCK\_WEIGHT}. \\
+\bottomrule
+\end{longtable}
+
+The timestamp checks above follow the active validation predicates for median
+time past, future-time acceptance, and BIP94 timewarp mitigation
+\cite{bitcoin-core-v31,bip-0094}.

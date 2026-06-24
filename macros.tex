@@ -1,0 +1,48 @@
+\newtoggle{darkmode}
+\togglefalse{darkmode}
+\newcommand{\docversion}{Draft}
+
+\newcommand{\applytheme}{
+  \iftoggle{darkmode}{
+    \definecolor{pagebg}{RGB}{28,30,34}
+    \definecolor{textfg}{RGB}{234,236,240}
+    \definecolor{linkcolor}{RGB}{122,181,255}
+    \definecolor{urlcolor}{RGB}{135,214,190}
+    \definecolor{citecolor}{RGB}{245,174,102}
+  }{
+    \definecolor{pagebg}{RGB}{255,255,255}
+    \definecolor{textfg}{RGB}{24,24,24}
+    \definecolor{linkcolor}{RGB}{0,68,136}
+    \definecolor{urlcolor}{RGB}{0,105,91}
+    \definecolor{citecolor}{RGB}{126,63,0}
+  }
+  \pagecolor{pagebg}
+  \makeatletter
+  \AtBeginDocument{%
+    \color{textfg}%
+    \def\ps@plain{%
+      \let\@mkboth\@gobbletwo
+      \let\@oddhead\@empty
+      \let\@evenhead\@empty
+      \def\@oddfoot{\reset@font\color{textfg}\hfil\thepage\hfil}%
+      \let\@evenfoot\@oddfoot}%
+    \pagestyle{plain}%
+  }
+  \makeatother
+}
+
+\newcommand{\term}[1]{\textit{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\consensus}{\term{consensus}}
+\newcommand{\policy}{\term{policy}}
+\newcommand{\bip}[1]{BIP~#1}
+\newcommand{\appendixsection}[1]{%
+  \refstepcounter{section}%
+  \section*{Appendix \Alph{section}. #1}%
+  \addcontentsline{toc}{section}{Appendix \Alph{section}. #1}%
+}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\makeatletter
+\renewcommand*\l@subsection{\@dottedtocline{2}{1.5em}{3.0em}}
+\makeatother

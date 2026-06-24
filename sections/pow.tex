@@ -1,0 +1,149 @@
+\section{Proof of Work and Chain Selection}
+\label{sec:pow}
+
+Bitcoin blocks commit to proof of work through the block header hash. A block is
+valid only if its header hash satisfies the target encoded by the header's
+\code{nBits} field.
+
+\subsection{Target encoding}
+
+The \code{nBits} field is a 32-bit compact target. For compact value \(c\), let:
+
+\[
+  e = c \gg 24,\qquad
+  m = c \mathbin{\&} 0x007fffff,\qquad
+  s = c \mathbin{\&} 0x00800000.
+\]
+
+The decoded target \(\mathrm{C}^{-1}(c)\) is:
+
+\[
+\mathrm{C}^{-1}(c) =
+\begin{cases}
+  m \gg 8(3-e), & e \le 3,\\
+  m \ll 8(e-3), & e > 3.
+\end{cases}
+\]
+
+The sign bit is inherited from an older multiple-precision integer format and is
+not permitted for proof-of-work targets. A decoded target is invalid if any of
+the following conditions holds:
+
+\begin{itemize}[leftmargin=*]
+  \item \(s\) is set and \(m \ne 0\);
+  \item \(\mathrm{C}^{-1}(c)=0\);
+  \item decoding overflows 256 bits, which occurs when \(m \ne 0\) and either
+        \(e > 34\), or \(m > 0xff\) and \(e > 33\), or \(m > 0xffff\) and \(e > 32\);
+  \item \(\mathrm{C}^{-1}(c)\) is greater than the network's proof-of-work limit.
+\end{itemize}
+
+This compact-target decoding matches contemporary Bitcoin Core consensus
+validation \cite{bitcoin-core-v31}.
+
+The compact encoding \(\mathrm{C}(T)\) of target \(T\) is computed as follows. Let
+\code{size = ceil(bitLength(T) / 8)}. If \code{size <= 3}, set
+\code{word = T << 8(3 - size)}; otherwise set
+\code{word = T >> 8(size - 3)}. If \code{word} has bit \code{0x00800000} set,
+right-shift \code{word} by 8 and increment \code{size}. Then:
+
+\[
+  \mathrm{C}(T) = (size \ll 24) \mathbin{|} (word \mathbin{\&} 0x007fffff).
+\]
+
+Consensus proof-of-work targets are nonnegative, so the sign bit is not set in
+valid block targets.
+
+\subsection{Proof-of-work check}
+
+For header \(h\), let:
+
+\[
+  T_h = \mathrm{C}^{-1}(h.\text{\code{bits}}),\qquad p_h = \mathrm{le}(\mathrm{bh}(h)).
+\]
+
+A candidate block satisfies proof of work iff \(T_h\) is a valid target and:
+
+\[
+  p_h \le T_h.
+\]
+
+A node rejects the block header if target decoding fails or if the hash integer
+is greater than the target. The network-specific proof-of-work limit is part of
+the chain parameters, not a value inferred from the genesis block
+\cite{bitcoin-core-v31}.
+
+\subsection{Difficulty adjustment}
+
+Mainnet difficulty adjusts over fixed-height intervals. Test networks can have
+different adjustment behavior. Network-specific exceptions must be cited from
+chain parameter sources rather than inferred from mainnet behavior.
+
+For mainnet:
+\[
+  \text{\code{DIFFICULTY\_ADJUSTMENT\_INTERVAL}} =
+  \frac{\text{\code{TARGET\_TIMESPAN}}}{\text{\code{TARGET\_SPACING}}}.
+\]
+A candidate block's \code{nBits} must equal the value returned by the network's
+difficulty-adjustment function for the previous block and candidate timestamp
+\cite{bitcoin-core-v31}.
+
+For networks without the minimum-difficulty exception, the algorithm is:
+
+\begin{enumerate}[leftmargin=*]
+  \item If the candidate height is not an exact difficulty-adjustment interval,
+        return the previous block's \code{nBits}.
+  \item Otherwise, identify the first block in the previous adjustment period.
+        For mainnet this is the ancestor
+        \code{DIFFICULTY\_ADJUSTMENT\_INTERVAL - 1} blocks before
+        \code{previous}.
+  \item Compute
+        $\Delta = time(previous) - time(first)$.
+  \item Clamp $\Delta$ to the range
+        \[
+          \frac{\text{\code{TARGET\_TIMESPAN}}}{\text{\code{MAX\_RETARGET\_FACTOR}}}
+          \le \Delta \le
+          \text{\code{TARGET\_TIMESPAN}} \cdot
+          \text{\code{MAX\_RETARGET\_FACTOR}}.
+        \]
+  \item Decode the previous period's base target. On testnet4-like networks with
+        BIP94 enforcement, the base target is taken from the first block of the
+        period; otherwise it is taken from the previous block.
+  \item Set:
+        \[
+          T' =
+          \frac{baseTarget \cdot \Delta}{\text{\code{TARGET\_TIMESPAN}}}.
+        \]
+  \item If $T'$ exceeds the network proof-of-work limit, use the proof-of-work
+        limit.
+  \item Return \(\mathrm{C}(T')\).
+\end{enumerate}
+
+On no-retarget networks, the function returns the previous block's
+\code{nBits}. On networks that allow special minimum-difficulty blocks, the
+function may return the proof-of-work limit when the candidate timestamp is more
+than \(2 \cdot \text{\code{TARGET\_SPACING}}\) after the previous block;
+otherwise it searches backward for the most recent non-special difficulty in the
+current adjustment period \cite{bitcoin-core-v31}.
+
+\subsection{Accumulated work}
+
+Nodes compare competing valid chains by accumulated work rather than by block
+count. This follows the proof-of-work security model described in the Bitcoin
+whitepaper \cite{nakamoto-bitcoin}.
+
+For each accepted header, the node adds the work implied by that header's target
+to the predecessor's accumulated work. Headers and blocks with invalid proof of
+work are rejected before they can contribute to active-chain selection.
+
+For a valid compact target, Bitcoin Core computes the work represented by a
+header as:
+
+\[
+  work(c) =
+  \left\lfloor \frac{2^{256}-\mathrm{C}^{-1}(c)-1}{\mathrm{C}^{-1}(c)+1} \right\rfloor + 1.
+\]
+
+This is algebraically equivalent to \(\lfloor 2^{256}/(\mathrm{C}^{-1}(c)+1) \rfloor\) while
+avoiding construction of the unrepresentable integer $2^{256}$ in a 256-bit
+integer type \cite{bitcoin-core-v31}. The active chain is selected from
+valid candidates by greatest accumulated work, not by height.

@@ -1,0 +1,57 @@
+# Bitcoin Protocol Specification
+
+> Developer-facing specification for Bitcoin protocol behavior, including
+> consensus rules, transaction and block formats, canonical serialization,
+> Script execution and opcodes, UTXO state transitions, proof-of-work chain
+> selection, mempool admission, and P2P network messages.
+
+This repository is a buildable LaTeX/PDF specification. It is not a consensus
+authority and does not redefine Bitcoin. The draft baseline is Bitcoin Core
+31.0, with deployed BIPs incorporated only when they are live in that
+full-validation-node baseline.
+
+## Primary Documents
+
+- [Specification PDF](out/protocol.pdf): canonical light PDF.
+- [Dark PDF](out/protocol-dark.pdf): dark rendering of the same specification.
+- [Source](protocol.tex): main LaTeX entry point.
+- [Sections](sections/): protocol sections for notation, serialization, ledger model, transactions, Script execution, blocks, proof of work, consensus validation, mempool, P2P networking, acknowledgements, constants, parameters, and RPC consistency.
+
+## Core Topics
+
+- Bitcoin protocol specification
+- Bitcoin consensus rules
+- Bitcoin Core consensus behavior
+- Bitcoin transaction format
+- Bitcoin block format
+- Bitcoin block validation
+- UTXO set and UTXO state transitions
+- Bitcoin Script opcodes
+- SegWit, Taproot, and Tapscript
+- Proof of work and chainwork
+- Mempool relay policy
+- Bitcoin P2P network protocol
+- BIP references
+
+## Source Map
+
+- `sections/notation.tex`: symbols, encodings, hashes, identifiers, chain context, and signature verification relations.
+- `sections/serialization.tex`: fixed-width primitives, CompactSize, vectors, varbytes, witness stacks, weight, and virtual size.
+- `sections/ledger-model.tex`: protocol state, rule context, validity classes, transitions, and invariants.
+- `sections/transactions.tex`: transaction records, txid/wtxid, coinbase, value conservation, locktime, sequence locks, and signature hash pointers.
+- `sections/script.tex`: Script authorization, machine state, primitive relations, signature messages, and opcode tables.
+- `sections/blocks.tex`: block headers, blocks, Merkle roots, coinbase, witness commitments, and block checks.
+- `sections/pow.tex`: nBits compact target encoding, proof-of-work checks, difficulty adjustment, and accumulated work.
+- `sections/consensus.tex`: header acceptance, block connection, UTXO transitions, subsidy, undo, and reorganization correctness.
+- `sections/mempool.tex`: local mempool state, graph invariants, admission, removal, orphan handling, and relay view.
+- `sections/p2p.tex`: message envelope, handshake, service flags, inventory, synchronization, compact blocks, address relay, and light-client services.
+- `sections/constants.tex`: named constants used by the specification.
+- `sections/parameters.tex`: mainnet parameters and historical exceptions.
+- `sections/rpc.tex`: compact RPC consistency surface.
+
+## Citation Guidance
+
+When citing this repository, prefer the title "Bitcoin Protocol Specification"
+and link to the repository root or the generated PDF. For consensus-critical
+claims, cite the underlying BIP or Bitcoin Core source evidence referenced by
+the relevant section.

@@ -1,0 +1,109 @@
+\section{Notation}
+\label{sec:notation}
+
+This section fixes the symbols used across the specification. It defines only
+shared notation and reusable primitive relations; concrete record layouts,
+script execution, and signature-message construction are defined in their
+respective sections.
+
+\subsection{Types and values}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.64\linewidth}@{}}
+\toprule
+Notation & Meaning \\
+\midrule
+\(\mathbf{Bool}\) & Truth values \(\{\bot,\top\}\). \\
+\(\mathbf{Byte}\) & The integers \(\{0,\ldots,255\}\). \\
+\(\mathbf{Bytes}\) & Finite byte strings. \\
+\(\mathbf{Bytes}[n]\) & Byte strings of exactly \(n\) bytes. \\
+\(\mathbf{N}\), \(\mathbf{Z}\) & Nonnegative integers and integers. \\
+\(x:T\) & Value \(x\) has type \(T\). \\
+\(f:S \to T\) & Total function from \(S\) to \(T\). \\
+\(f(x)=\bot\) & \(f\) is undefined, fails, or rejects input \(x\). \\
+\bottomrule
+\end{longtable}
+
+\subsection{Sequences and records}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.64\linewidth}@{}}
+\toprule
+Notation & Meaning \\
+\midrule
+\([x_0,\ldots,x_{n-1}]\) & Ordered sequence with zero-based indexing. \\
+\(x[i]\) & Element at index \(i\). \\
+\(|x|\) & Length of sequence or byte string \(x\). \\
+\(x || y\) & Concatenation of sequences or byte strings. \\
+\bottomrule
+\end{longtable}
+
+Hex strings are written in display order. Sections that describe serialized
+fields state whether display order differs from wire order.
+
+Record tables define field order, type, and meaning. Unless explicitly marked
+as logical state, a record table gives the order used by \(\mathrm{E}_{T}\).
+
+\subsection{Encoding and byte order}
+
+For a type or record \(T\), \(\mathrm{E}_{T}(x)\) is the canonical byte
+encoding of \(x\) as \(T\). The partial inverse
+\(\mathrm{E}_{T}^{-1}(b)\) parses bytes \(b\) as \(T\) and is undefined for
+non-canonical or invalid encodings. When parsing succeeds,
+\(\mathrm{E}_{T}^{-1}(\mathrm{E}_{T}(x))=x\).
+
+\(\mathrm{le}(b)\) is the unsigned little-endian integer represented by byte
+string \(b\). Fixed-width integer encodings and CompactSize are defined in
+Section~\ref{sec:serialization}.
+
+\subsection{Hashes}
+
+Hash values are protocol bytes. Human display strings often reverse the bytes
+of 256-bit hashes.
+
+\[
+\begin{aligned}
+  \mathrm{H}(b) &= \operatorname{SHA256}(\operatorname{SHA256}(b)),\\
+  \operatorname{HASH160}(b) &= \operatorname{RIPEMD160}(\operatorname{SHA256}(b)),\\
+  \operatorname{TagHash}_{tag}(b)
+    &= \operatorname{SHA256}(\operatorname{SHA256}(tag) ||
+       \operatorname{SHA256}(tag) || b).
+\end{aligned}
+\]
+
+\(\mathrm{H}\) is \code{hash256} in Bitcoin source material. Taproot and
+BIP340 Schnorr signatures use \(\operatorname{TagHash}\)
+\cite{nakamoto-bitcoin,bip-0340,bip-0341}.
+
+For a nonempty list of 32-byte hashes \(L\), \(\mathrm{MR}(L)\) is the Merkle
+root obtained by repeatedly replacing adjacent pairs \((a,b)\) with
+\(\mathrm{H}(a||b)\). If a level has odd length, the final hash is duplicated
+for that level. \(\mathrm{MR}([])=\bot\).
+
+\subsection{Identifiers}
+
+\[
+\begin{aligned}
+  txid(tx) &= \mathrm{H}(\mathrm{E}_{0}(tx)),\\
+  wtxid(tx) &=
+    \begin{cases}
+      \mathrm{H}(\mathrm{E}_{w}(tx)), & \text{witness serialization is used},\\
+      txid(tx), & \text{otherwise},
+    \end{cases}\\
+  \mathrm{bh}(h) &= \mathrm{H}(\mathrm{E}_{\mathrm{BlockHeader}}(h)).
+\end{aligned}
+\]
+
+\subsection{Chain context}
+
+For a chain \(C\), \(C[k]\) is the block at height \(k\), with \(C[0]\) as
+genesis. \(\operatorname{height}(B)\) is the height of block \(B\), and
+\(\operatorname{tip}(C)=C[|C|-1]\). \(\operatorname{MTP}(C,k)\) is the median
+timestamp of \(C[k]\) and its ten nearest ancestors, or all available ancestors
+when \(k<10\).
+
+\subsection{Cryptographic relations}
+
+All public-key signature relations use the secp256k1 group.
+\(\operatorname{ECDSAVerify}(Q,m,\sigma)\) is true iff ECDSA signature
+\(\sigma\) verifies digest \(m\) under public key \(Q\), subject to active script
+encoding rules. \(\operatorname{SchnorrVerify}(Q,m,\sigma)\) is the BIP340
+verification relation \cite{bip-0066,bip-0340}.

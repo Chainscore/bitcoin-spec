@@ -1,0 +1,221 @@
+\section{Peer-to-Peer Network Protocol}
+\label{sec:p2p}
+
+The P2P protocol transports blocks, transactions, headers, addresses, filters,
+and relay-control messages between nodes. This section specifies interoperable
+wire behavior.
+
+\subsection{Message envelope}
+
+Legacy unencrypted Bitcoin P2P messages use a 24-byte header followed by a
+payload:
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.20\linewidth}L{0.46\linewidth}@{}}
+\toprule
+Field & Type & Meaning \\
+\midrule
+\code{start} & \code{byte[4]} & Network magic identifying mainnet, testnet, signet, or regtest. \\
+\code{command} & \code{byte[12]} & ASCII command name padded with zero bytes. \\
+\code{payloadSize} & \code{uint32} & Number of payload bytes. \\
+\code{checksum} & \code{byte[4]} & First four bytes of \(\mathrm{H}(payload)\). \\
+\code{payload} & \code{byte[]} & Command-specific serialized payload of length \code{payloadSize}. \\
+\bottomrule
+\end{longtable}
+
+BIP324 defines an encrypted v2 transport that changes transport framing after
+negotiation, but command payload semantics remain command-specific
+\cite{bip-0324,bitcoin-core-v31}.
+
+\subsection{Handshake}
+
+A connection becomes usable after version negotiation:
+
+\begin{enumerate}[leftmargin=*]
+  \item each side sends \code{version};
+  \item each side validates network, protocol version, services, timestamp,
+        nonce, and user-agent limits;
+  \item each side sends \code{verack}; and
+  \item optional relay, compact-block, address-relay, filter, and transport
+        features are negotiated by later messages.
+\end{enumerate}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.24\linewidth}L{0.40\linewidth}@{}}
+\toprule
+\code{version} field & Type & Meaning \\
+\midrule
+\code{version} & \code{int32} & Protocol version offered by the sender. \\
+\code{services} & \code{uint64} & Service bits offered by the sender. \\
+\code{timestamp} & \code{int64} & Sender Unix time in seconds. \\
+\code{addrRecv} & network address & Address of the receiving peer as understood by the sender. \\
+\code{addrFrom} & network address & Address of the sender. \\
+\code{nonce} & \code{uint64} & Random connection nonce used to detect self-connections. \\
+\code{userAgent} & \code{string} & BIP14 user-agent string. \\
+\code{startHeight} & \code{int32} & Sender's current best height estimate. \\
+\code{relay} & \code{bool}, optional & BIP37 transaction-inventory relay preference when present. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Control and negotiation payloads}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.24\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Message & Payload & Meaning \\
+\midrule
+\code{verack} & empty & Completes version negotiation. \\
+\code{sendheaders} & empty & Requests direct \code{headers} announcements instead of block inventory announcements. \\
+\code{wtxidrelay} & empty & Negotiates transaction relay by witness transaction identifier. \\
+\code{sendaddrv2} & empty & Negotiates BIP155 address relay. \\
+\code{ping} & \code{uint64 nonce} & Liveness probe. \\
+\code{pong} & \code{uint64 nonce} & Response echoing the received ping nonce. \\
+\code{feefilter} & \code{uint64 feerate} & Asks the peer not to announce transactions below the feerate in satoshis per 1000 virtual bytes. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Service flags}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.14\linewidth}L{0.50\linewidth}@{}}
+\toprule
+Flag & Bit & Meaning \\
+\midrule
+\code{NODE\_NETWORK} & 0 & Peer can serve the full block chain. \\
+\code{NODE\_BLOOM} & 2 & Peer supports BIP37 bloom-filter service. \\
+\code{NODE\_WITNESS} & 3 & Peer supports witness transaction and block relay. \\
+\code{NODE\_COMPACT\_FILTERS} & 6 & Peer supports BIP157 compact block filter service. \\
+\code{NODE\_NETWORK\_LIMITED} & 10 & Peer can serve at least a limited recent block window. \\
+\bottomrule
+\end{longtable}
+
+Service flags advertise capability. A node must still validate responses and
+apply local resource limits.
+
+\subsection{Inventory and object retrieval}
+
+Inventory relay announces objects by type and hash. A peer requests announced
+objects with \code{getdata}; the responder sends the corresponding object or a
+\code{notfound} response when unavailable.
+
+\begin{longtable}{@{}L{0.20\linewidth}L{0.24\linewidth}L{0.44\linewidth}@{}}
+\toprule
+Record & Fields & Meaning \\
+\midrule
+\code{InventoryVector} & \code{type:uint32}, \code{hash:uint256} & Identifies a transaction, block, filtered block, compact block, witness transaction, or witness block. \\
+\code{inv} & {\small\code{vector<}\newline\code{InventoryVector>}} & Announces available objects. \\
+\code{getdata} & {\small\code{vector<}\newline\code{InventoryVector>}} & Requests announced objects. \\
+\code{notfound} & {\small\code{vector<}\newline\code{InventoryVector>}} & Reports requested objects not available from the responder. \\
+\bottomrule
+\end{longtable}
+
+Witness inventory types request serialization that includes witness data. A
+peer that has not negotiated witness support must not rely on receiving witness
+objects from that connection \cite{bip-0144}.
+
+\begin{longtable}{@{}L{0.30\linewidth}L{0.20\linewidth}L{0.38\linewidth}@{}}
+\toprule
+Inventory type & Value & Object requested or announced \\
+\midrule
+\code{MSG\_TX} & 1 & Transaction by \code{txid}. \\
+\code{MSG\_BLOCK} & 2 & Block without requiring witness serialization. \\
+\code{MSG\_FILTERED\_BLOCK} & 3 & BIP37 filtered block. \\
+\code{MSG\_CMPCT\_BLOCK} & 4 & BIP152 compact block. \\
+\code{MSG\_WITNESS\_TX} & $2^{30} + 1$ & Transaction including witness data, identified by \code{txid} request type with witness flag. \\
+\code{MSG\_WITNESS\_BLOCK} & $2^{30} + 2$ & Block including witness data. \\
+{\small\code{MSG\_FILTERED}\newline\code{\_WITNESS\_BLOCK}} & $2^{30} + 3$ & Filtered block including witness data. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Header and block synchronization}
+
+Headers synchronize chain work before full block data. A locator is a sequence
+of block hashes, newest first, stepping back from a known tip toward genesis.
+
+Messages \code{getheaders} and \code{getblocks} carry a locator and stop hash.
+Message \code{headers} returns block headers in forward order, each followed by
+CompactSize zero. Message \code{block} carries serialized full block data. A
+node must validate proof of work, linkage, target, timestamp, and deployment
+context for received headers before using them for chain selection.
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.24\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Record & Fields & Encoding rule \\
+\midrule
+\code{BlockLocator} & \code{version}, \code{hashes} & \code{int32} version followed by \code{vector<uint256>} locator hashes. \\
+{\small\code{getheaders}/\newline\code{getblocks}} & \code{version}, \code{locator}, \code{stopHash} & \code{int32}, locator vector, then \code{uint256} stop hash. \\
+\code{headers} item & \code{header}, \code{txCount} & 80-byte block header followed by CompactSize zero. A nonzero count is invalid for \code{headers}. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Compact block relay}
+
+BIP152 compact blocks reduce block-relay bandwidth by sending a header, short
+transaction identifiers, selected prefilled transactions, and requesting any
+missing transactions \cite{bip-0152}.
+
+Message \code{sendcmpct} negotiates compact-block mode and announcement
+preference. Messages \code{cmpctblock}, \code{getblocktxn}, and \code{blocktxn}
+carry the compact block and missing-transaction exchange. Compact
+reconstruction is an optimization only. The reconstructed full block must pass
+the same block validation rules as any received \code{block} message.
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.24\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Record & Fields & Encoding rule \\
+\midrule
+{\small\code{Compact}\newline\code{Block}} & \code{header}, \code{nonce}, \code{shortIds}, \code{prefilledTx} & Header, \code{uint64} nonce, CompactSize count plus 6-byte short ids, then \code{vector<PrefilledTx>}. \\
+\code{PrefilledTx} & \code{indexDelta}, \code{tx} & CompactSize differential index from the previous prefilled transaction, then full transaction. \\
+\code{getblocktxn} & \code{blockHash}, \code{indexes} & Block hash followed by CompactSize differential transaction indexes. \\
+\code{blocktxn} & \code{blockHash}, \code{transactions} & Block hash followed by transaction vector. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Address relay}
+
+Legacy address records and BIP155 address records use different encodings:
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.24\linewidth}L{0.42\linewidth}@{}}
+\toprule
+Record & Fields & Encoding rule \\
+\midrule
+{\small\code{NetAddress}\newline\code{NoTime}} & \code{services}, \code{address}, \code{port} & \code{uint64} services, 16 address bytes, then \code{uint16} port in big-endian network byte order. Used inside \code{version}. \\
+{\small\code{NetAddress}\newline\code{Legacy}} & \code{time}, \code{services}, \code{address}, \code{port} & \code{uint32} time plus \code{NetAddressNoTime}. Used by \code{addr}. \\
+\code{AddrV2} & \code{time}, \code{services}, \code{networkId}, \code{address}, \code{port} & \code{uint32} time, CompactSize services, \code{uint8} network id, CompactSize address length, address bytes, then big-endian port. \\
+\bottomrule
+\end{longtable}
+
+Messages \code{addr} and \code{addrv2} relay legacy and BIP155 address
+records. Message \code{sendaddrv2} announces BIP155 address-relay support, and
+\code{getaddr} requests known peer addresses subject to local rate limits.
+Address relay is unauthenticated gossip. Received addresses are hints, not
+validated reachability claims \cite{bip-0155}.
+
+\subsection{Light-client services}
+
+Bitcoin P2P includes two optional light-client service families:
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.26\linewidth}L{0.38\linewidth}@{}}
+\toprule
+Service & Messages & Status \\
+\midrule
+BIP37 bloom filters & \code{filterload}, \code{filteradd}, \code{filterclear}, \code{merkleblock} & Optional peer service; disabled unless a node chooses to provide bloom-filter support. \\
+BIP157/158 compact filters & \code{getcfilters}, \code{cfilter}, \code{getcfheaders}, \code{cfheaders}, \code{getcfcheckpt}, \code{cfcheckpt} & Optional compact-filter service for clients that verify filters against block-filter headers. \\
+\bottomrule
+\end{longtable}
+
+These services do not change block or transaction validity
+\cite{bip-0037,bip-0157,bip-0158}.
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.28\linewidth}L{0.36\linewidth}@{}}
+\toprule
+Message & Payload fields & Encoding rule \\
+\midrule
+\code{filterload} & \code{filter}, \code{hashFuncs}, \code{tweak}, \code{flags} & \code{varbytes}, \code{uint32}, \code{uint32}, \code{uint8}. \\
+\code{filteradd} & \code{data} & \code{varbytes}. \\
+\code{filterclear} & empty & Clears the peer's BIP37 filter state. \\
+\code{merkleblock} & \code{header}, \code{total}, \code{hashes}, \code{flags} & Block header, \code{uint32} total transactions, \code{vector<uint256>} hashes, and flag bytes. \\
+\code{getcfilters} & \code{type}, \code{startHeight}, \code{stopHash} & \code{uint8}, \code{uint32}, \code{uint256}. \\
+\code{cfilter} & \code{type}, \code{blockHash}, \code{filter} & \code{uint8}, \code{uint256}, \code{varbytes}. \\
+\code{getcfheaders} & \code{type}, \code{startHeight}, \code{stopHash} & \code{uint8}, \code{uint32}, \code{uint256}. \\
+\code{cfheaders} & \code{type}, \code{stopHash}, \code{prevHeader}, \code{filterHashes} & \code{uint8}, two \code{uint256} values, then \code{vector<uint256>}. \\
+\code{getcfcheckpt} & \code{type}, \code{stopHash} & \code{uint8}, \code{uint256}. \\
+\code{cfcheckpt} & \code{type}, \code{stopHash}, \code{headers} & \code{uint8}, \code{uint256}, \code{vector<uint256>}. \\
+\bottomrule
+\end{longtable}

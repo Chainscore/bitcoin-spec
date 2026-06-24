@@ -1,0 +1,233 @@
+\section{Script Execution}
+\label{sec:script}
+
+For each non-coinbase input \(i\), spend authorization is the predicate:
+
+\[
+  \operatorname{Authorize}_{R}(tx,i,coin,u,H) \in \{\top,\bot\},
+\]
+
+where \(u=(scriptSig,witness)\) is the unlocking data, \(coin\) is the spent
+UTXO, \(R\) is the active rule context, and \(H\) is the candidate height and
+median-time context. Authorization chooses a spend form, constructs a script
+machine state, and evaluates the committed program.
+
+\subsection{Spend forms}
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.64\linewidth}@{}}
+\toprule
+Form & Required relation \\
+\midrule
+Legacy & \(\operatorname{Eval}_{R}(scriptSig,\mathrm{BASE})\) then \(\operatorname{Eval}_{R}(scriptPubKey,\mathrm{BASE})\); witness empty; final stack top is true. \\
+P2SH & \(R\) includes P2SH; \code{scriptSig} is push-only; final pushed item is \code{redeemScript}; \(\operatorname{HASH160}(redeemScript)\) matches; \(\operatorname{Eval}_{R}(redeemScript,\mathrm{BASE})\) succeeds on the pushed stack. \\
+Witness v0 key hash & Native witness program length 20; \code{scriptSig} empty unless P2SH-wrapped; witness stack is \((signature,pubkey)\); \(\operatorname{HASH160}(pubkey)\) matches; ECDSA verifies \(M_{\mathrm{wit0}}\). \\
+Witness v0 script hash & Native witness program length 32; final witness item is \code{witnessScript}; \(\operatorname{SHA256}(witnessScript)\) matches; \(\operatorname{Eval}_{R}(witnessScript,\mathrm{WITNESS\_V0})\) succeeds on the remaining witness stack. \\
+Taproot key path & \(R\) includes Taproot; witness stack, after optional annex removal, contains one Schnorr signature; BIP340 verifies \(M_{\mathrm{tr}}\) under the output key. \\
+Taproot script path & Control block commits a tapleaf to the output key. Leaf version \code{0xc0} evaluates as Tapscript; unknown leaf versions succeed after commitment validation. \\
+Unknown witness version & A syntactically valid witness program with no assigned meaning succeeds without execution. \\
+\bottomrule
+\end{longtable}
+
+Native witness spends require empty \code{scriptSig}; P2SH-wrapped witness
+spends require \code{scriptSig} to push exactly the witness program
+\cite{bip-0016,bip-0141,bip-0143,bip-0340,bip-0341,bip-0342}.
+
+\subsection{Machine state}
+
+Script evaluation is a deterministic transition over:
+
+\[
+  X=(tx,i,coin,script,pc,S,A,C,R,\sigma,k,\alpha,\beta).
+\]
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.70\linewidth}@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\code{script}, \code{pc} & Program bytes and instruction cursor. \\
+\(S,A,C\) & Main stack, altstack, and conditional-execution stack. \\
+\(R,\sigma\) & Active rule context and signature version: \(\mathrm{BASE}\), \(\mathrm{WITNESS\_V0}\), or \(\mathrm{TAPSCRIPT}\). \\
+\(k\) & Last executed code-separator position for signature-message construction. \\
+\(\alpha\) & Taproot annex, if present. \\
+\(\beta\) & Tapscript validation-weight budget. \\
+\bottomrule
+\end{longtable}
+
+Legacy and witness-v0 execution enforce the script limits named in
+Appendix~\ref{app:constants}. Tapscript removes the script-size and
+per-script-opcode limits, keeps the stack-item and stack-size limits, and sets:
+
+\[
+  \beta =
+  \text{\code{TAPSCRIPT\_SIGOPS\_BUDGET\_BASE}}+
+  \operatorname{serializedWitnessSize}(input).
+\]
+
+Each executed signature opcode with a nonempty signature subtracts
+\code{TAPSCRIPT\_SIGOPS\_COST}; negative \(\beta\) fails.
+
+\subsection{Evaluation}
+
+\[
+  \operatorname{Eval}_{R}(script,\sigma,S_0)=
+  \begin{cases}
+    \top, & \text{execution halts successfully with required final stack,}\\
+    \bot, & \text{parsing, execution, resource, or final-stack validation fails.}
+  \end{cases}
+\]
+
+If \(\sigma=\mathrm{TAPSCRIPT}\), the script is scanned for any
+\code{OP\_SUCCESSx} index before ordinary execution; encountering one succeeds.
+Otherwise, instructions are decoded left to right and \(\operatorname{Step}\)
+is applied while all entries of \(C\) are true. Non-control opcodes in inactive
+branches do not mutate \(S\), but parse-stage failures and Tapscript
+\code{OP\_SUCCESSx} detection still apply.
+
+Successful termination requires an empty \(C\). Legacy and witness-v0 require a
+nonempty \(S\) whose top element casts to true. Tapscript requires exactly one
+stack element, and that element must cast to true.
+
+\subsection{Primitive relations}
+
+\begin{longtable}{@{}L{0.28\linewidth}L{0.60\linewidth}@{}}
+\toprule
+Relation & Definition \\
+\midrule
+\(\operatorname{CastToBool}(x)\) & False iff \(x\) is empty, zero, or negative zero; true otherwise. \\
+\(\operatorname{Num}(x,n,min)\) & Signed-magnitude little-endian integer from byte vector \(x\), length at most \(n\); if \(min\), nonzero encodings must be minimal. \\
+\(\operatorname{MinimalPush}(op,x)\) & True iff \(op\) is the shortest permitted push form for \(x\). \\
+\(\operatorname{LockTime}(X,n)\) & Units match \code{tx.lockTime}, \(n\le tx.lockTime\), and the input sequence is nonfinal. \\
+\(\operatorname{Sequence}(X,n)\) & BIP68 is active in \(R\), disable/type bits permit comparison, and the input sequence satisfies \(n\). \\
+\(\operatorname{CheckSig}(X,sig,key,h)\) & Empty signatures return false. Legacy and witness-v0 use ECDSA over secp256k1; Taproot and Tapscript use BIP340 Schnorr. Tapscript key size 0 fails, size 32 verifies, and other nonzero key sizes are unknown key types that pass current consensus. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Signature messages}
+
+Signature checks verify exactly one digest:
+
+\[
+\begin{aligned}
+  M_{\mathrm{legacy}} &= \operatorname{SigMsg}_{\mathrm{legacy}}(tx,i,k,h),\\
+  M_{\mathrm{wit0}} &= \operatorname{SigMsg}_{\mathrm{wit0}}(tx,i,coin,k,h),\\
+  M_{\mathrm{tr}} &= \operatorname{SigMsg}_{\mathrm{tr}}(tx,i,coin,\alpha,k,h).
+\end{aligned}
+\]
+
+Hash type bytes are \code{0x00} \code{DEFAULT} for Taproot,
+\code{0x01} \code{ALL}, \code{0x02} \code{NONE}, \code{0x03}
+\code{SINGLE}, and \code{0x80} \code{ANYONECANPAY} ORed with non-default
+forms. \code{ALL}, \code{NONE}, and \code{SINGLE} select the output commitment
+set; \code{ANYONECANPAY} restricts input commitment to the signed input.
+Legacy out-of-range \code{SINGLE} signs \code{uint256::ONE}; Taproot
+out-of-range \code{SINGLE} fails \cite{bip-0143,bip-0341,bip-0342}.
+
+\subsection{Opcode classes}
+
+Effects use \code{(before -- after)} for stack transitions, with the rightmost
+item at the top of \(S\). Every opcode index is covered by exactly one row
+below.
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Index & Opcode & Effect \\
+\midrule
+\code{0} & \code{OP\_0 / OP\_FALSE} & Push empty vector. \\
+\code{1..75} & \code{OP\_PUSHBYTES\_n} & Push the next \(n\) script bytes. \\
+\code{76} & \code{OP\_PUSHDATA1} & Next \code{uint8} gives pushed byte length. \\
+\code{77} & \code{OP\_PUSHDATA2} & Next little-endian \code{uint16} gives pushed byte length. \\
+\code{78} & \code{OP\_PUSHDATA4} & Next little-endian \code{uint32} gives pushed byte length. \\
+\code{79} & \code{OP\_1NEGATE} & Push \(-1\). \\
+\code{81..96} & \code{OP\_1..OP\_16} & Push integer \(1..16\). \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Index & Opcode & Effect \\
+\midrule
+\code{97} & \code{OP\_NOP} & No effect. \\
+\code{99} & \code{OP\_IF} & \code{(v --)}; push \(\operatorname{CastToBool}(v)\) to \(C\). \\
+\code{100} & \code{OP\_NOTIF} & \code{(v --)}; push negated condition to \(C\). \\
+\code{101} & \code{OP\_VERIF} & Fail. \\
+\code{102} & \code{OP\_VERNOTIF} & Fail. \\
+\code{103} & \code{OP\_ELSE} & Toggle top of \(C\); unmatched \code{ELSE} fails. \\
+\code{104} & \code{OP\_ENDIF} & Pop top of \(C\); unmatched \code{ENDIF} fails. \\
+\code{105} & \code{OP\_VERIFY} & \code{(v --)} if true; otherwise fail. \\
+\code{106} & \code{OP\_RETURN} & Fail. \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Index & Opcode & Effect \\
+\midrule
+\code{107} & \code{OP\_TOALTSTACK} & Move top of \(S\) to \(A\). \\
+\code{108} & \code{OP\_FROMALTSTACK} & Move top of \(A\) to \(S\). \\
+\code{109..114} & \code{OP\_2DROP..OP\_2SWAP} & Fixed stack rearrangements; fail on underflow. \\
+\code{115} & \code{OP\_IFDUP} & Duplicate top item iff it casts true. \\
+\code{116} & \code{OP\_DEPTH} & Push stack depth. \\
+\code{117..125} & \code{OP\_DROP..OP\_TUCK} & Fixed stack rearrangements; fail on underflow. \\
+\code{130} & \code{OP\_SIZE} & \code{(x -- x len(x))}. \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Index & Opcode & Effect \\
+\midrule
+\code{135} & \code{OP\_EQUAL} & Byte-vector equality. \\
+\code{136} & \code{OP\_EQUALVERIFY} & Equality followed by \code{VERIFY}. \\
+\code{139..148} & \code{OP\_1ADD..OP\_SUB} & Unary or binary arithmetic over \(\operatorname{Num}(x,4,min)\). \\
+\code{154..165} & \code{OP\_BOOLAND..OP\_WITHIN} & Boolean and numeric comparisons over \(\operatorname{Num}(x,4,min)\). \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Index & Opcode & Effect \\
+\midrule
+\code{166} & \code{OP\_RIPEMD160} & \code{(x -- RIPEMD160(x))}. \\
+\code{167} & \code{OP\_SHA1} & \code{(x -- SHA1(x))}. \\
+\code{168} & \code{OP\_SHA256} & \code{(x -- SHA256(x))}. \\
+\code{169} & \code{OP\_HASH160} & \code{(x -- HASH160(x))}. \\
+\code{170} & \code{OP\_HASH256} & \code{(x -- H(x))}. \\
+\code{171} & \code{OP\_CODESEPARATOR} & Set \(k\) to this opcode position. \\
+\code{172} & \code{OP\_CHECKSIG} & \code{(sig key -- ok)} using \(\operatorname{CheckSig}\). \\
+\code{173} & \code{OP\_CHECKSIGVERIFY} & \code{CHECKSIG} followed by \code{VERIFY}. \\
+\code{174} & \code{OP\_CHECKMULTISIG} & \code{(dummy sig[m] m key[n] n -- ok)}; enforces historical dummy rule when active; disabled in Tapscript. \\
+\code{175} & \code{OP\_CHECKMULTISIGVERIFY} & \code{CHECKMULTISIG} followed by \code{VERIFY}; disabled in Tapscript. \\
+\code{186} & \code{OP\_CHECKSIGADD} & Tapscript only: \code{(sig n key -- n+ok)}. \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Index & Opcode & Effect \\
+\midrule
+\code{176} & \code{OP\_NOP1} & No effect. \\
+\code{177} & \code{OP\_CHECKLOCKTIMEVERIFY / OP\_NOP2} & If active in \(R\), require \(\operatorname{LockTime}(X,n)\); otherwise no effect. \\
+\code{178} & \code{OP\_CHECKSEQUENCEVERIFY / OP\_NOP3} & If active in \(R\), require \(\operatorname{Sequence}(X,n)\); otherwise no effect. \\
+\code{179..185} & \code{OP\_NOP4..OP\_NOP10} & No effect unless redefined by active soft-fork rules. \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Index & Opcode & Effect \\
+\midrule
+\code{80} & \code{OP\_RESERVED / OP\_SUCCESS80} & Reserved failure if executed outside Tapscript; Tapscript success. \\
+\code{98} & \code{OP\_VER / OP\_SUCCESS98} & Reserved failure if executed outside Tapscript; Tapscript success. \\
+\code{126..129} & \code{OP\_CAT..OP\_RIGHT / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{131..134} & \code{OP\_INVERT..OP\_XOR / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{137..138} & \code{OP\_RESERVED1..OP\_RESERVED2 / OP\_SUCCESSx} & Reserved failure if executed outside Tapscript; Tapscript success. \\
+\code{141..142} & \code{OP\_2MUL..OP\_2DIV / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{149..153} & \code{OP\_MUL..OP\_RSHIFT / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{187..254} & \code{OP\_SUCCESS187..OP\_SUCCESS254} & Tapscript success; invalid outside Tapscript. \\
+\code{255} & \code{OP\_INVALIDOPCODE} & Fail. \\
+\bottomrule
+\end{longtable}
+
+Consensus script behavior is defined by the active P2SH, DER, locktime,
+sequence, NULLDUMMY, SegWit, Taproot, and Tapscript rules
+\cite{bip-0065,bip-0066,bip-0068,bip-0112,bip-0113,bip-0147,bip-0341,bip-0342,bitcoin-core-v31}.

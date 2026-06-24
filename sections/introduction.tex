@@ -1,0 +1,100 @@
+\section{Introduction}
+\label{sec:introduction}
+
+\subsection{Background}
+
+Bitcoin was introduced by Satoshi Nakamoto as a peer-to-peer electronic cash
+system: a network in which payments can be validated by participants directly,
+without requiring a financial intermediary to order transactions or prevent
+double spending \cite{nakamoto-bitcoin}. Its core design combines digital
+signatures, a public append-only history, a proof-of-work timestamp chain, and
+local validation by independently operated nodes. Transactions spend previously
+created outputs and create new outputs; blocks commit ordered transaction sets;
+nodes accept the valid chain with the greatest accumulated proof of work.
+
+The consequence is a protocol whose authority is operational rather than
+institutional. No server, committee, or publication grants validity to a
+transaction or block. A block is useful only if economically relevant validating
+nodes accept it under their consensus rules, and a transaction is final only to
+the extent that it remains in the accepted proof-of-work history. This makes
+Bitcoin unusually sensitive to precise definitions: serialization, hash
+preimages, script evaluation, subsidy, difficulty adjustment, lock-time,
+witness commitments, and deployment rules are not merely engineering details.
+They are the boundary between a node that follows the same network and a node
+that has forked into a different system.
+
+\subsection{Why this specification exists}
+
+Bitcoin does not have a single normative protocol specification in the style of
+an Internet RFC. Its design is distributed across the original paper,
+Bitcoin Improvement Proposals, Bitcoin Core source code, release notes,
+developer documentation, test vectors, and long-running network practice
+\cite{bitcoin-bips-repo,bitcoin-core,bitcoin-core-v31,bitcoin-developer-reference}.
+That distribution has served Bitcoin well: it keeps proposals reviewable, lets
+implementations evolve conservatively, and avoids granting authority to a
+document detached from deployed validation behavior. It also leaves developers
+with a practical problem. To implement, audit, test, or reason about Bitcoin,
+they must assemble one protocol from many artifacts that use different levels
+of precision and often mix consensus, policy, wallet behavior, and operational
+guidance.
+
+This specification is intended to be the consolidated technical reference for
+that protocol. It states Bitcoin as data structures, encodings, identifiers,
+state variables, validation predicates, state transitions, and peer messages.
+It is not a proposal to change Bitcoin, not a replacement for BIPs, and not an
+authority over consensus. Where this document conflicts with economically
+relevant node validation, node validation wins. Its purpose is to make the
+protocol easier to inspect: one place where the rules needed by independent
+implementers, reviewers, researchers, and protocol engineers are expressed
+coherently.
+
+\subsection{Related work}
+
+The original Bitcoin paper defines the motivating problem and the high-level
+mechanism: timestamped proof of work over a chain of transaction-containing
+blocks \cite{nakamoto-bitcoin}. BIPs refine that design by documenting concrete
+changes, conventions, and interoperability standards, including consensus soft
+forks, peer services, wallet formats, and application-level conventions
+\cite{bip-0123,bitcoin-bips-repo}. Bitcoin Core is the dominant full-node
+implementation and the principal executable reference for contemporary
+validation and relay behavior \cite{bitcoin-core,bitcoin-core-v31}.
+Developer references and generated API documentation are valuable guides, but
+they are not a complete formal specification of the network protocol
+\cite{bitcoin-developer-reference}.
+
+Other cryptocurrency systems have benefited from standalone protocol
+specifications. The Zcash protocol specification separates high-level protocol
+concepts from concrete encodings and upgrade-specific consensus rules
+\cite{zcash-protocol-spec}. Ethereum's Yellow Paper presents Ethereum as a
+transaction-based state machine with explicit state-transition functions
+\cite{ethereum-yellowpaper}. The JAM graypaper follows the same tradition of a
+single coherent formal model for an independently implementable protocol
+\cite{graypaper-repo}. This document applies that style to Bitcoin while
+respecting Bitcoin's different governance reality: no paper, repository, or
+committee has authority to redefine the deployed protocol.
+
+\subsection{Methodology}
+
+The baseline for this draft is Bitcoin Core source, its
+implemented-BIPs index, and the BIPs cited throughout this document are treated
+as evidence for contemporary full-node behavior
+\cite{bitcoin-core-v31}. The specification
+separates three classes of behavior:
+
+\begin{enumerate}[leftmargin=*]
+  \item Consensus rules: predicates that determine whether blocks and
+        transactions can be accepted into the active chain.
+  \item Peer and relay rules: network records and local admission behavior used
+        by nodes to exchange blocks, transactions, addresses, and negotiation
+        state.
+  \item Local implementation behavior: storage layout, indexes, caches, RPC
+        surfaces, wallet policy, user interface behavior, and performance
+        choices that may explain Bitcoin Core but are not themselves protocol
+        requirements.
+\end{enumerate}
+
+Only the first two classes belong in the main specification. Implementation
+details are included only when they expose a protocol boundary or prevent an
+ambiguous reading of consensus or peer behavior. This keeps the document useful
+as a source-of-truth reference without turning it into a commentary on one code
+base.

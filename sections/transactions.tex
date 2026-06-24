@@ -1,0 +1,228 @@
+\section{Transactions}
+\label{sec:transactions}
+
+A Bitcoin transaction consumes previously created outputs and creates new
+outputs. Consensus validation distinguishes the serialized transaction bytes,
+the identifiers derived from those bytes, and the contextual checks that depend
+on the UTXO set and block height.
+
+\subsection{Identifier and amount primitives}
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.24\linewidth}L{0.42\linewidth}@{}}
+\toprule
+Type & Encoding & Meaning \\
+\midrule
+\code{Txid} & \code{uint256} & \(txid(tx)\), as defined in Section~\ref{sec:notation}. \\
+\code{Wtxid} & \code{uint256} & \(wtxid(tx)\), as defined in Section~\ref{sec:notation}. \\
+\code{OutPoint} & \code{Txid || uint32} & Reference to one transaction output by transaction identifier and output index. \\
+\code{Amount} & \code{int64} & Satoshis. Consensus-valid output amounts satisfy $0 \le value \le$ \code{MAX\_MONEY}. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Transaction records}
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.22\linewidth}L{0.22\linewidth}L{0.28\linewidth}@{}}
+\toprule
+\multicolumn{4}{@{}l}{\textbf{\code{TxOut}}} \\
+\midrule
+Field & Type & Encoding & Meaning \\
+\midrule
+\code{value} & \code{Amount} & \code{int64} & Output value in satoshis. \\
+\code{scriptPubKey} & \code{Script} & \code{varbytes} & Locking script. \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.22\linewidth}L{0.22\linewidth}L{0.28\linewidth}@{}}
+\toprule
+\multicolumn{4}{@{}l}{\textbf{\code{TxIn}}} \\
+\midrule
+Field & Type & Encoding & Meaning \\
+\midrule
+\code{previousOutput} & \code{OutPoint} & 36 bytes & Output spent by this input, or the null outpoint for coinbase. \\
+\code{scriptSig} & \code{Script} & \code{varbytes} & Unlocking script or coinbase data. \\
+\code{sequence} & \code{uint32} & 4 little-endian bytes & Finality, replacement, and relative-lock field. \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.22\linewidth}L{0.22\linewidth}L{0.28\linewidth}@{}}
+\toprule
+\multicolumn{4}{@{}l}{\textbf{\code{Transaction}}} \\
+\midrule
+Field & Type & Encoding & Meaning \\
+\midrule
+\code{version} & \code{int32} & 4 little-endian bytes & Transaction version. Versions 1 and 2 are standard by default relay policy; consensus accepts the integer subject to contextual rules. \\
+\code{inputs} & \code{vector<TxIn>} & CompactSize count, then inputs & Spent outputs or coinbase input. \\
+\code{outputs} & \code{vector<TxOut>} & CompactSize count, then outputs & Created outputs. \\
+\code{witnesses} & \code{vector<Witness>} & witness serialization only & One witness stack per input when witness serialization is used. \\
+\code{lockTime} & \code{uint32} & 4 little-endian bytes & Absolute height or time lock. \\
+\bottomrule
+\end{longtable}
+
+\code{Witness} is \code{vector<varbytes>}. It is present only in witness
+serialization and has exactly one stack per input.
+
+\subsection{Legacy serialization}
+
+\(\mathrm{E}_{0}(tx)\), the legacy transaction serialization, is:
+
+\[
+  version || inputs || outputs || lockTime.
+\]
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.24\linewidth}L{0.42\linewidth}@{}}
+\toprule
+Part & Encoding & Meaning \\
+\midrule
+\code{version} & \code{int32} & Transaction version. \\
+\code{inputCount} & \code{compactSize} & Number of inputs. \\
+\code{inputs} & \code{TxIn[inputCount]} & Serialized inputs in order. \\
+\code{outputCount} & \code{compactSize} & Number of outputs. \\
+\code{outputs} & \code{TxOut[outputCount]} & Serialized outputs in order. \\
+\code{lockTime} & \code{uint32} & Absolute lock field. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Witness serialization}
+
+\(\mathrm{E}_{w}(tx)\), the witness transaction serialization, is:
+
+\[
+  version || marker || flag || inputs || outputs || witnesses || lockTime.
+\]
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.24\linewidth}L{0.42\linewidth}@{}}
+\toprule
+Part & Encoding & Meaning \\
+\midrule
+\code{marker} & \code{0x00} & Distinguishes witness serialization from legacy serialization. \\
+\code{flag} & \code{0x01} & Indicates witness data follows. Other nonzero flag bits are invalid. \\
+\code{witnesses} & \code{Witness[inputCount]} & One witness stack per input. \\
+\bottomrule
+\end{longtable}
+
+The witness form is valid only when at least one witness stack is nonempty. A
+transaction with no witness data uses legacy serialization for both \code{Txid}
+and \code{Wtxid} \cite{bip-0141,bip-0144}.
+
+\subsection{Transaction identifiers}
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.58\linewidth}@{}}
+\toprule
+Identifier & Definition \\
+\midrule
+\code{txid(tx)} & Defined in Section~\ref{sec:notation}. \\
+\code{wtxid(tx)} & Defined in Section~\ref{sec:notation}. \\
+\code{GenTxid} & Pair of identifier kind and hash used by relay to distinguish txid and wtxid announcements. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Context-free validity}
+
+A transaction is context-free valid only if:
+
+\begin{enumerate}[leftmargin=*]
+  \item it has at least one input and at least one output;
+  \item its stripped size satisfies
+        $strippedSize(tx) \cdot
+        \text{\code{WITNESS\_SCALE\_FACTOR}}
+        \le \text{\code{MAX\_BLOCK\_WEIGHT}}$;
+  \item every output value is in range;
+  \item the sum of output values is in range;
+  \item no two inputs reference the same previous output;
+  \item if it is coinbase, it has exactly one input whose previous output is
+        the null outpoint and whose \code{scriptSig} length is between
+        \code{COINBASE\_SCRIPTSIG\_MIN} and
+        \code{COINBASE\_SCRIPTSIG\_MAX} bytes; and
+  \item if it is not coinbase, no input uses the null outpoint.
+\end{enumerate}
+
+Context-free validity does not prove the inputs exist or signatures are valid;
+those checks require the UTXO set and rule context
+\cite{bitcoin-core-v31}.
+
+\subsection{Coinbase transaction}
+
+A coinbase transaction has exactly one input whose previous output is the null
+outpoint defined by \code{NULL\_TXID} and \code{NULL\_INDEX}. Its input does not
+spend a UTXO. Its outputs create the block subsidy and collect fees, subject to
+the coinbase amount rule during block connection.
+
+Coinbase-created outputs require \code{COINBASE\_MATURITY} confirmations before
+they may be spent.
+
+\subsection{Value conservation}
+
+For a non-coinbase transaction:
+
+\[
+  fee(tx) = \sum value(spentInputs(tx)) - \sum value(outputs(tx)).
+\]
+
+The transaction is invalid if any referenced input is absent, any spent coin is
+immature coinbase, any output is outside the money range, the output sum is
+outside the money range, or \code{fee(tx)} is negative
+\cite{bitcoin-core-v31}.
+
+\subsection{Locktime and sequence}
+
+\code{lockTime} values below \code{LOCKTIME\_THRESHOLD} are block heights;
+values at or above that threshold are Unix times. For a candidate block at
+height \(h\) with rule context \(R\) and locktime cutoff \(t\), define the
+selected lock boundary:
+
+\[
+\ell(tx,h,t)=
+\begin{cases}
+h,
+  & tx.\text{\code{lockTime}} < \text{\code{LOCKTIME\_THRESHOLD}},\\
+t,
+  & tx.\text{\code{lockTime}} \ge \text{\code{LOCKTIME\_THRESHOLD}},
+\end{cases}
+\]
+
+\[
+\begin{aligned}
+\operatorname{AbsFinal}(tx,h,t) \Longleftrightarrow\;&
+tx.\text{\code{lockTime}}=0 \vee
+tx.\text{\code{lockTime}} < \ell(tx,h,t) \vee {}\\
+&\forall i:\ tx.\text{\code{inputs}}[i].\text{\code{sequence}}
+  = \text{\code{SEQUENCE\_FINAL}}.
+\end{aligned}
+\]
+
+If \(R\) includes BIP113, \(t=\operatorname{MTP}(C,h-1)\); otherwise \(t\) is
+the candidate block timestamp.
+
+If \(R\) includes BIP68, relative locks apply only to version-2-or-higher
+transactions and only to inputs whose \code{sequence} does not set
+\code{SEQUENCE\_LOCKTIME\_DISABLE\_FLAG}. For validation view \(V\), define
+\(\operatorname{SeqFinal}(tx,C,V,h)\) as follows. If
+\(tx.\text{\code{version}} < 2\), it is true. Otherwise, for each applicable
+input \(i\), let \(s_i\) be its sequence value, \(v_i=s_i \mathbin{\&}
+\text{\code{SEQUENCE\_LOCKTIME\_MASK}}\), and \(c_i\) be the height of
+the coin spent by input \(i\) in \(V\). Height locks require:
+
+\[
+  h > c_i + v_i - 1.
+\]
+
+When \(s_i\) sets \code{SEQUENCE\_LOCKTIME\_TYPE\_FLAG}, the input is time
+locked instead. Let \(\tau_i=\operatorname{MTP}(C,c_i-1)\). Time locks require:
+
+\[
+  \operatorname{MTP}(C,h-1) >
+  \tau_i + v_i \cdot \text{\code{SEQUENCE\_LOCKTIME\_GRANULARITY}} - 1.
+\]
+
+The transaction satisfies relative locks iff every applicable input satisfies
+its selected height or time constraint; disabled inputs impose no constraint.
+If \(R\) does not include BIP68, \(\operatorname{SeqFinal}\) is true
+\cite{bip-0068,bip-0112,bip-0113,bitcoin-core-v31}.
+
+\subsection{Signature hashes}
+
+Signature validation signs a digest derived from the transaction, input index,
+spent output, hash type, and active script version. Legacy, SegWit v0, and
+Taproot/Tapscript spend paths use different digest algorithms, specified in
+Section~\ref{sec:script}. These digests are consensus-critical because the
+signature checks validate exactly those bytes.

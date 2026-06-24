@@ -1,0 +1,178 @@
+\section{Consensus Validation}
+\label{sec:consensus}
+
+Consensus validation determines whether a node may accept a chain history as
+valid. It instantiates the transition relations from
+Section~\ref{sec:ledger-model} for headers, block data, active-chain
+connection, and reorganization.
+
+\subsection{Validation relation}
+
+Let \(N\) be the network parameter set. For candidate block \(b\), candidate
+height \(h\), candidate block time \(t\), active chain \(C\), and UTXO set
+\(U\), let \(R=\operatorname{Rules}(N,C,h,t)\). A successful connection
+produces:
+
+\[
+  (C, U) \xrightarrow{b} (C', U')
+\]
+
+where \(C'\) extends or reorganizes \(C\) to include \(b\), and \(U'\) is the UTXO set
+obtained after applying every transaction in the connected branch. If any
+consensus check fails, the active pair \((C,U)\) is unchanged.
+
+\subsection{Header acceptance}
+
+A header is accepted into the header graph only if all conditions below hold.
+Header acceptance does not imply that block transaction data is known or valid.
+
+\begin{longtable}{@{}L{0.28\linewidth}L{0.60\linewidth}@{}}
+\toprule
+Condition & Required rule \\
+\midrule
+Uniqueness & If \(\mathrm{bh}(h)\) is already known, the existing header state is reused. \\
+Previous header & Every non-genesis header references a known previous header. \\
+Proof of work & \(\mathrm{le}(\mathrm{bh}(h)) \le \mathrm{C}^{-1}(h.\text{\code{bits}})\). \\
+Target & \(\mathrm{C}^{-1}(h.\text{\code{bits}})\) is valid for the height, network, and difficulty-adjustment interval. \\
+Timestamp & The header time is greater than the median timestamp of the previous block and up to ten ancestors. A header whose time is more than \code{MAX\_FUTURE\_BLOCK\_TIME} after the node's current clock time is future-dated and not eligible for active validation until time advances. \\
+BIP94 timewarp & On networks enforcing BIP94, a difficulty-adjustment block other than genesis has time at least \code{previous.time - BIP94\_TIMEWARP\_GRACE}. \\
+Rule context & \(R\) permits the candidate height, time, version field, and network-specific activation state. \\
+Invalid ancestry & A header descending from a known-invalid header is not eligible for best-chain selection. \\
+\bottomrule
+\end{longtable}
+
+For each accepted header, the node records height, predecessor,
+\(\mathrm{C}^{-1}(h.\text{\code{bits}})\), \(\mathrm{bh}(h)\), and accumulated
+work. Accumulated work is the sum of the work represented by each header from
+genesis through that header.
+
+\subsection{Block-data acceptance}
+
+Full block data is accepted only after the corresponding header is accepted.
+The following checks are performed before block data can become a candidate for
+active-chain connection:
+
+\begin{longtable}{@{}L{0.26\linewidth}L{0.62\linewidth}@{}}
+\toprule
+Check & Required rule \\
+\midrule
+Block form & The block has at least one transaction, satisfies the stripped-size, transaction-count, and weight limits in Section~\ref{sec:blocks}, and the first transaction is the only coinbase transaction. \\
+Merkle root & Header \code{merkleRoot} equals \(\mathrm{MR}(L)\) for the block's txid leaves, and the mutated-root condition is rejected. \\
+Transaction form & Every transaction passes context-free transaction checks. \\
+Legacy sigops limit & \code{legacySigOps(block) * WITNESS\_SCALE\_FACTOR <= MAX\_BLOCK\_SIGOPS\_COST} before P2SH and witness sigops are counted during connection. \\
+Contextual finality & Every transaction satisfies \(\operatorname{AbsFinal}\) for the candidate block height and locktime cutoff. \\
+Coinbase height & If \(R\) includes BIP34, the coinbase script begins with the candidate height. \\
+Witness commitment & If \(R\) includes SegWit and the block has witness data, the coinbase witness commitment is present and correct. \\
+Weight & The block weight is at most \code{MAX\_BLOCK\_WEIGHT}. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Best-chain selection}
+
+Among branches whose headers are valid and whose required block data is
+available, the selected branch is the valid branch with greatest accumulated
+work. A candidate branch is not eligible while any block on the path from the
+active fork to the candidate tip is missing block data or is known invalid.
+
+\begin{enumerate}[leftmargin=*]
+  \item Choose the highest-work eligible candidate tip.
+  \item Find the fork point with the current active chain.
+  \item Disconnect active-chain blocks back to the fork.
+  \item Connect candidate-branch blocks forward in height order.
+  \item If a candidate block is consensus-invalid, exclude that block and its
+        descendants from future selection and retry with the next candidate.
+\end{enumerate}
+
+\subsection{Block connection}
+
+Connecting a non-genesis block applies the block's transactions to a temporary
+UTXO view whose best block is the previous block hash. The view becomes active
+only after all checks below pass.
+
+\begin{longtable}{@{}L{0.28\linewidth}L{0.60\linewidth}@{}}
+\toprule
+Rule & Required behavior \\
+\midrule
+BIP30 no-overwrite & A transaction output must not overwrite an existing unspent outpoint except for the historical BIP30 exceptions and buried rules that make the check unnecessary after BIP34. \\
+Input availability & Every non-coinbase input references an unspent coin in the candidate view. \\
+Duplicate spends & A transaction must not spend the same outpoint more than once. \\
+Coinbase maturity & Coinbase-created outputs may be spent only after \code{COINBASE\_MATURITY} confirmations. \\
+Sequence locks & Every non-coinbase transaction satisfies the BIP68 relative-lock predicate from Section~\ref{sec:transactions}. \\
+Value range & Every output and every sum used during validation remains in the money range. \\
+Value conservation & For each non-coinbase transaction, input value is at least output value; the difference is the transaction fee. \\
+Script validity & Each input satisfies the previous output's locking script under the script flags active for the block. \\
+Sigops cost & Total block signature-operation cost is at most \code{MAX\_BLOCK\_SIGOPS\_COST}. \\
+Subsidy & Coinbase output value is at most block subsidy plus total fees. \\
+\bottomrule
+\end{longtable}
+
+The genesis block is special: its coinbase transaction is part of the block
+history but is not connected as a spendable coin by normal block-connection
+rules.
+
+\subsection{UTXO transition}
+
+For a valid non-coinbase transaction $tx$, let $I(tx)$ be its input outpoints
+and $O(tx)$ be its outputs indexed by output number. The candidate UTXO set is
+updated as follows:
+
+\[
+  U_{after} =
+    (U_{before} \setminus I(tx)) \cup
+    \{((txid(tx), n), coin(out_n, height, false)) : out_n \in O(tx)\}.
+\]
+
+For the coinbase transaction, there are no spent inputs, and created outputs
+are inserted with \code{coinbase = true}. Outputs whose value is zero are still
+outputs and are inserted unless another consensus rule rejects the transaction.
+
+\subsection{Rule context}
+
+\(\operatorname{Rules}(N,C,h,t)\) determines the script flags and contextual
+block predicates used for connection. Mainnet consensus rule context includes
+the buried and deployed rules for P2SH, strict DER signatures, locktime and
+sequence verification, SegWit, Taproot, and Tapscript when included in \(R\)
+\cite{bip-0016,bip-0065,bip-0066,bip-0068,bip-0112,bip-0113,bip-0141,bip-0143,bip-0147,bip-0341,bip-0342}.
+
+Policy-only flags may be stricter for mempool relay, but policy failure is not
+block invalidity.
+
+\subsection{Subsidy and fees}
+
+The block subsidy is determined by height and network parameters. For mainnet,
+the subsidy starts at 50 BTC and halves every 210,000 blocks until it reaches
+zero by integer right shift \cite{bip-0042}. The consensus rule for a connected
+block is:
+
+\[
+  \sum outputs(coinbase) \le subsidy(height) + \sum fees(noncoinbase).
+\]
+
+Fees are computed from connected inputs and outputs. A transaction whose output
+sum exceeds its input sum is invalid.
+
+\subsection{Undo}
+
+Before applying a non-coinbase transaction, a node records the spent coin for
+each input in input order. The undo record for a block is the ordered sequence
+of those per-transaction records, excluding the coinbase. Undo is sufficient to
+restore the previous UTXO set when the block is disconnected; the byte encoding
+of undo data is not a consensus rule.
+
+\subsection{Reorganization correctness}
+
+A reorganization from old tip $o$ to new tip $n$ is valid only if:
+
+\begin{enumerate}[leftmargin=*]
+  \item the branch ending at $n$ has greater accumulated work than the current
+        active branch or is otherwise selected by the same greatest-work rule;
+  \item every disconnected block is reversed exactly using the UTXO state that
+        existed after that block was connected;
+  \item every connected block on the new branch passes normal block connection;
+        and
+  \item after the transition, the active UTXO set equals the result of applying
+        the active chain from genesis to $n$.
+\end{enumerate}
+
+Transactions removed from disconnected blocks reenter relay only under current
+mempool policy.

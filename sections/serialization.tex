@@ -1,0 +1,94 @@
+\section{Serialization}
+\label{sec:serialization}
+
+Bitcoin protocol objects are byte strings with fixed field order. Unless a
+field table states otherwise, \(\mathrm{E}_{T}\) serializes integers in
+little-endian byte order, vectors with a CompactSize element count, and byte
+vectors with a CompactSize byte length followed by exactly that many bytes.
+
+\subsection{Fixed-width primitives}
+
+\begin{longtable}{@{}L{0.22\linewidth}L{0.18\linewidth}L{0.48\linewidth}@{}}
+\toprule
+Primitive & Width & Serialization rule \\
+\midrule
+\code{uint8} / \code{int8} & 1 byte & Byte value as stored. \\
+\code{uint16} / \code{int16} & 2 bytes & Least significant byte first. \\
+\code{uint32} / \code{int32} & 4 bytes & Least significant byte first. \\
+\code{uint64} / \code{int64} & 8 bytes & Least significant byte first. \\
+\code{byte[n]} & $n$ bytes & Exactly the given bytes, in index order. \\
+\code{bool} & 1 byte & Zero is false; nonzero is true unless a field table restricts the value. \\
+\code{uint160} & 20 bytes & 160-bit hash value. \\
+\code{uint256} & 32 bytes & 256-bit hash value. Display hex commonly reverses these bytes. \\
+\bottomrule
+\end{longtable}
+
+Fixed-width integer fields are serialized in little-endian byte order unless a
+field table explicitly states otherwise \cite{bitcoin-core-v31}.
+
+\subsection{CompactSize}
+
+Bitcoin transaction and block structures use CompactSize integers to encode
+counts and byte-vector lengths. CompactSize is canonical: a decoder rejects a
+value encoded with a longer form than necessary.
+
+\begin{longtable}{@{}L{0.24\linewidth}L{0.24\linewidth}L{0.40\linewidth}@{}}
+\toprule
+Value range & Encoding & Canonicality rule \\
+\midrule
+$0 \le n < 253$ & one byte: $n$ & First byte is less than 0xfd. \\
+$253 \le n \le 0xffff$ & 0xfd followed by \code{uint16} & Decoded value must be at least 253. \\
+$2^{16} \le n \le 2^{32}-1$ & 0xfe followed by \code{uint32} & Decoded value must be at least 0x10000. \\
+$2^{32} \le n \le 2^{64}-1$ & 0xff followed by \code{uint64} & Decoded value must be at least 0x100000000. \\
+\bottomrule
+\end{longtable}
+
+A parser rejects non-canonical CompactSize encodings and any decoded count or
+length that exceeds the enclosing field's rule.
+
+\subsection{Constructors}
+
+\begin{longtable}{@{}L{0.20\linewidth}L{0.32\linewidth}L{0.36\linewidth}@{}}
+\toprule
+Constructor & Serialized form & Used for \\
+\midrule
+\code{vector<T>} & \code{compactSize count || T[0] || ... || T[count-1]} & Transaction inputs, outputs, block transactions, inventory vectors, and payload lists. \\
+\code{varbytes} & \code{compactSize length || byte[length]} & Scripts, signatures, public keys, witness items, and variable network fields. \\
+\code{string} & \code{compactSize length || byte[length]} & P2P user-agent and payload strings. Character validity is context-specific. \\
+\code{witnessStack} & \code{compactSize itemCount || varbytes[0] || ...} & One witness stack for one transaction input. \\
+\bottomrule
+\end{longtable}
+
+Scripts, signatures, public keys, witness items, and network payload fields
+reuse \code{varbytes} in different contexts. Parsing bytes into opcodes,
+signatures, keys, or scripts is a later semantic step.
+
+For transactions and blocks, \(\mathrm{E}_{0}(x)\) is the serialization with
+witness data stripped, and \(\mathrm{E}_{w}(x)\) is the serialization including
+witness data where such data is defined. Define:
+
+\[
+  strippedSize(x) = |\mathrm{E}_{0}(x)|,
+  \qquad
+  totalSize(x) = |\mathrm{E}_{w}(x)|.
+\]
+
+The consensus weight formula is:
+
+\[
+  weight(x) = 3 \cdot strippedSize(x) + totalSize(x).
+\]
+
+For relay and fee accounting, virtual transaction size is the integer ceiling
+of weight divided by witness scale:
+
+\[
+  vsize(tx) =
+  \left\lfloor
+  \frac{weight(tx) + \text{\code{WITNESS\_SCALE\_FACTOR}} - 1}
+       {\text{\code{WITNESS\_SCALE\_FACTOR}}}
+  \right\rfloor.
+\]
+
+Block consensus enforces \code{MAX\_BLOCK\_WEIGHT} against \code{weight(block)}
+\cite{bip-0141,bitcoin-core-v31}.

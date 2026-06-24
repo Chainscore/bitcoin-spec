@@ -1,0 +1,163 @@
+\section{Mempool}
+\label{sec:mempool}
+
+The mempool is local, non-consensus state. It is a node's current set of
+unconfirmed transactions that the node is willing to keep, relay, and consider
+for block-template construction. A transaction can be valid in a block and
+absent from a node's mempool.
+
+Let \(U\) be the active UTXO set. A mempool is:
+
+\[
+  Q = (M,G,I),
+\]
+
+where \(M\) is a finite map from transaction identifier to mempool entry, \(G\)
+is the dependency graph induced by unconfirmed spends, and \(I\) is the set of
+indexes needed to query entries by transaction identifier, witness transaction
+identifier, spent outpoint, created outpoint, feerate, and entry time.
+In equations, \(t \in M\) ranges over transactions in the entry map, and
+\(Q \cup \{tx\}\) denotes the mempool obtained by adding \(tx\) to \(M\) and
+recomputing \(G\) and \(I\).
+For validation against mempool ancestors, define:
+
+\[
+  \operatorname{View}(Q,U)=U \cup \bigcup_{t \in M}\operatorname{Out}(t).
+\]
+
+\subsection{Entry}
+
+\begin{longtable}{@{}L{0.18\linewidth}L{0.22\linewidth}L{0.48\linewidth}@{}}
+\toprule
+Field & Type & Meaning \\
+\midrule
+\code{tx} & \code{Transaction} & Serialized transaction accepted into the mempool. \\
+\code{txid}, \code{wtxid} & \code{uint256} & Transaction identifiers from Section~\ref{sec:transactions}. \\
+\code{fee} & \code{int64} & Input value minus output value under \(\operatorname{View}(Q,U)\). \\
+\code{weight}, \code{vsize} & \code{int64} & Weight and virtual size from Section~\ref{sec:serialization}. \\
+\code{sigopsCost} & \code{int64} & Signature-operation cost under the selected script rules. \\
+\code{spends} & OutPoint set & Previous outputs consumed by \code{tx}. \\
+\code{creates} & OutPoint set & Outputs created by \code{tx}. \\
+\code{parents} & Txid set & Mempool transactions directly spent by \code{tx}. \\
+\code{children} & Txid set & Mempool transactions that directly spend \code{tx}. \\
+\code{entryTime}, \code{entryHeight} & local clock, height & Admission time and active-chain height at admission. \\
+\bottomrule
+\end{longtable}
+
+The entry fields are logical fields: an implementation may derive, cache, or
+index them differently, but externally observable mempool behavior must be
+equivalent.
+
+\subsection{Graph Invariants}
+
+For a transaction \(t\), let \(\operatorname{In}(t)\) be its spent outpoints and
+\(\operatorname{Out}(t)\) be its created outpoints. Direct mempool dependencies
+are:
+
+\[
+\begin{aligned}
+\operatorname{parents}_{Q}(t)
+  &= \{u \in M : \operatorname{In}(t) \cap \operatorname{Out}(u) \ne \emptyset\},\\
+\operatorname{children}_{Q}(t)
+  &= \{u \in M : \operatorname{In}(u) \cap \operatorname{Out}(t) \ne \emptyset\}.
+\end{aligned}
+\]
+
+A mempool is well-formed relative to \(U\) iff:
+
+\[
+\begin{aligned}
+\operatorname{TxAvailable}_{Q}(t,U) \Longleftrightarrow\;&
+  \forall x \in \operatorname{In}(t):
+  x \in U \cup \bigcup_{u \in M \setminus \{t\}}\operatorname{Out}(u).
+\end{aligned}
+\]
+
+\[
+\begin{aligned}
+\operatorname{WellFormed}(Q,U) \Longleftrightarrow\;&
+  \forall t \in M:\neg\operatorname{Coinbase}(t) \wedge
+  \operatorname{ContextFreeValid}(t) \wedge
+  \operatorname{TxAvailable}_{Q}(t,U) \wedge \\
+& \forall a,b \in M,\ a\ne b:
+  \operatorname{In}(a) \cap \operatorname{In}(b)=\emptyset \wedge \\
+& G=\{(u,t):u \in \operatorname{parents}_{Q}(t)\} \wedge
+  \operatorname{Acyclic}(G).
+\end{aligned}
+\]
+
+The graph order is the spend order: a parent precedes every child. Any block
+template or package derived from \(Q\) must include transactions in a topological
+order of \(G\).
+
+\subsection{Admission}
+
+Admission is a local transition:
+
+\[
+  Q \xrightarrow[P]{tx,U,H} Q',
+\]
+
+where \(P\) is the node's local policy parameter set and \(H\) is the next-block
+height and median-time context. Write \(H=(C,h,t)\), where \(C\) is the active
+chain, \(h\) is the next block height, and \(t\) is the next block locktime
+cutoff. Let \(V_Q=\operatorname{View}(Q,U)\). A single transaction admission
+succeeds iff:
+
+\[
+\begin{aligned}
+\operatorname{Admit}_{P}(Q,U,H,tx) \Longleftrightarrow\;&
+  tx \notin M \wedge
+  \operatorname{WellFormed}(Q \cup \{tx\},U) \wedge \\
+& \operatorname{ConsensusValid}(V_Q,tx,H) \wedge
+  \operatorname{AbsFinal}(tx,h,t) \wedge
+  \operatorname{SeqFinal}(tx,C,V_Q,h) \wedge \\
+& \operatorname{Policy}_{P}(Q,U,tx,H),\\
+Q' = Q \cup \{tx\} \Longleftrightarrow\;&
+  \operatorname{Admit}_{P}(Q,U,H,tx).
+\end{aligned}
+\]
+
+\(\operatorname{Policy}_{P}\) includes node-local standardness, feerate,
+resource, replacement, package, and denial-of-service rules. Those rules do not
+define consensus validity; when they are specified, they belong with the
+transaction, script, package, or relay behavior they constrain.
+
+A package \(\pi\) is admitted atomically by applying the same transition to a
+topologically sorted sequence of transactions. If any member fails, the package
+transition fails and \(Q\) is unchanged.
+
+\subsection{Removal}
+
+Let \(B\) be a connected block and \(U'\) the UTXO set after connecting it.
+Let \(H'\) be the next-block context after connecting \(B\).
+Connecting \(B\) removes every included transaction and every mempool
+transaction that conflicts with the block:
+
+\[
+\begin{aligned}
+\operatorname{ConnectBlock}(Q,B,U') =
+\{t \in M:\;&t \notin B.\text{\code{txs}} \wedge \\
+&\operatorname{In}(t) \cap \operatorname{Spent}(B)=\emptyset \wedge \\
+&\operatorname{ConsensusValid}(\operatorname{View}(Q,U'),t,H')\}.
+\end{aligned}
+\]
+
+After removal, all entry indexes and dependency edges are recomputed so that
+\(\operatorname{WellFormed}(Q,U')\) holds.
+
+Disconnecting a block does not automatically restore its transactions to the
+mempool. The disconnected transactions become admission candidates and may
+reenter only through the current admission relation under the post-disconnect
+chain state.
+
+\subsection{Orphans and Relay View}
+
+A transaction with unavailable inputs is not a mempool entry. A node may keep an
+orphan cache \(O\) of such transactions and retry admission when parents become
+available, but \(O\) is local resource state and has no consensus meaning.
+
+Transaction relay announces transactions from \(Q\) by \code{txid} or
+\code{wtxid}, serves requested transactions if still present, and may filter,
+delay, or suppress announcements according to local policy. Relay choices do
+not change the definition of \(Q\) \cite{bitcoin-core-v31}.
