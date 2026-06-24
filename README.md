@@ -5,7 +5,7 @@
   <img alt="Bitcoin Protocol Specification cover" src="assets/bitcoin-core-code-cover-light.png">
 </picture>
 
-Developer specification for the Bitcoin protocol: consensus rules,
+In this specification for the Bitcoin protocol, we have covered most of the concepts & rulesets to develop on Bitcoin: consensus rules,
 transaction and block formats, canonical serialization, Bitcoin Script opcode
 behavior, UTXO state transitions, proof-of-work chain selection, mempool relay
 boundaries, and peer-to-peer network messages.
