@@ -125,20 +125,35 @@ out-of-range \code{SINGLE} fails \cite{bip-0143,bip-0341,bip-0342}.
 \subsection{Opcode classes}
 
 Effects use \code{(before -- after)} for stack transitions, with the rightmost
-item at the top of \(S\). Every opcode index is covered by exactly one row
-below.
+item at the top of \(S\). Parameterized direct byte pushes are represented as a
+single family; every named opcode is listed separately.
 
 \begin{longtable}{@{}L{0.14\linewidth}L{0.34\linewidth}L{0.40\linewidth}@{}}
 \toprule
 Index & Opcode & Effect \\
 \midrule
 \code{0} & \code{OP\_0 / OP\_FALSE} & Push empty vector. \\
-\code{1..75} & \code{OP\_PUSHBYTES\_n} & Push the next \(n\) script bytes. \\
+\code{1-75} & \code{OP\_PUSHBYTES\_n} & Push the next \(n\) script bytes. \\
 \code{76} & \code{OP\_PUSHDATA1} & Next \code{uint8} gives pushed byte length. \\
 \code{77} & \code{OP\_PUSHDATA2} & Next little-endian \code{uint16} gives pushed byte length. \\
 \code{78} & \code{OP\_PUSHDATA4} & Next little-endian \code{uint32} gives pushed byte length. \\
 \code{79} & \code{OP\_1NEGATE} & Push \(-1\). \\
-\code{81..96} & \code{OP\_1..OP\_16} & Push integer \(1..16\). \\
+\code{81} & \code{OP\_1} & Push integer \(1\). \\
+\code{82} & \code{OP\_2} & Push integer \(2\). \\
+\code{83} & \code{OP\_3} & Push integer \(3\). \\
+\code{84} & \code{OP\_4} & Push integer \(4\). \\
+\code{85} & \code{OP\_5} & Push integer \(5\). \\
+\code{86} & \code{OP\_6} & Push integer \(6\). \\
+\code{87} & \code{OP\_7} & Push integer \(7\). \\
+\code{88} & \code{OP\_8} & Push integer \(8\). \\
+\code{89} & \code{OP\_9} & Push integer \(9\). \\
+\code{90} & \code{OP\_10} & Push integer \(10\). \\
+\code{91} & \code{OP\_11} & Push integer \(11\). \\
+\code{92} & \code{OP\_12} & Push integer \(12\). \\
+\code{93} & \code{OP\_13} & Push integer \(13\). \\
+\code{94} & \code{OP\_14} & Push integer \(14\). \\
+\code{95} & \code{OP\_15} & Push integer \(15\). \\
+\code{96} & \code{OP\_16} & Push integer \(16\). \\
 \bottomrule
 \end{longtable}
 
@@ -164,10 +179,23 @@ Index & Opcode & Effect \\
 \midrule
 \code{107} & \code{OP\_TOALTSTACK} & Move top of \(S\) to \(A\). \\
 \code{108} & \code{OP\_FROMALTSTACK} & Move top of \(A\) to \(S\). \\
-\code{109..114} & \code{OP\_2DROP..OP\_2SWAP} & Fixed stack rearrangements; fail on underflow. \\
+\code{109} & \code{OP\_2DROP} & \code{(x1 x2 --)}. \\
+\code{110} & \code{OP\_2DUP} & \code{(x1 x2 -- x1 x2 x1 x2)}. \\
+\code{111} & \code{OP\_3DUP} & \code{(x1 x2 x3 -- x1 x2 x3 x1 x2 x3)}. \\
+\code{112} & \code{OP\_2OVER} & \code{(x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2)}. \\
+\code{113} & \code{OP\_2ROT} & \code{(x1 x2 x3 x4 x5 x6 -- x3 x4 x5 x6 x1 x2)}. \\
+\code{114} & \code{OP\_2SWAP} & \code{(x1 x2 x3 x4 -- x3 x4 x1 x2)}. \\
 \code{115} & \code{OP\_IFDUP} & Duplicate top item iff it casts true. \\
 \code{116} & \code{OP\_DEPTH} & Push stack depth. \\
-\code{117..125} & \code{OP\_DROP..OP\_TUCK} & Fixed stack rearrangements; fail on underflow. \\
+\code{117} & \code{OP\_DROP} & \code{(x --)}. \\
+\code{118} & \code{OP\_DUP} & \code{(x -- x x)}. \\
+\code{119} & \code{OP\_NIP} & \code{(x1 x2 -- x2)}. \\
+\code{120} & \code{OP\_OVER} & \code{(x1 x2 -- x1 x2 x1)}. \\
+\code{121} & \code{OP\_PICK} & \code{(n -- x)}; copy stack item \(n\) to the top. \\
+\code{122} & \code{OP\_ROLL} & \code{(n -- x)}; move stack item \(n\) to the top. \\
+\code{123} & \code{OP\_ROT} & \code{(x1 x2 x3 -- x2 x3 x1)}. \\
+\code{124} & \code{OP\_SWAP} & \code{(x1 x2 -- x2 x1)}. \\
+\code{125} & \code{OP\_TUCK} & \code{(x1 x2 -- x2 x1 x2)}. \\
 \code{130} & \code{OP\_SIZE} & \code{(x -- x len(x))}. \\
 \bottomrule
 \end{longtable}
@@ -178,8 +206,26 @@ Index & Opcode & Effect \\
 \midrule
 \code{135} & \code{OP\_EQUAL} & Byte-vector equality. \\
 \code{136} & \code{OP\_EQUALVERIFY} & Equality followed by \code{VERIFY}. \\
-\code{139..148} & \code{OP\_1ADD..OP\_SUB} & Unary or binary arithmetic over \(\operatorname{Num}(x,4,min)\). \\
-\code{154..165} & \code{OP\_BOOLAND..OP\_WITHIN} & Boolean and numeric comparisons over \(\operatorname{Num}(x,4,min)\). \\
+\code{139} & \code{OP\_1ADD} & \code{(x -- x+1)} over \(\operatorname{Num}(x,4,min)\). \\
+\code{140} & \code{OP\_1SUB} & \code{(x -- x-1)} over \(\operatorname{Num}(x,4,min)\). \\
+\code{143} & \code{OP\_NEGATE} & \code{(x -- -x)} over \(\operatorname{Num}(x,4,min)\). \\
+\code{144} & \code{OP\_ABS} & \code{(x -- |x|)} over \(\operatorname{Num}(x,4,min)\). \\
+\code{145} & \code{OP\_NOT} & Push \(1\) iff numeric input is zero; otherwise push \(0\). \\
+\code{146} & \code{OP\_0NOTEQUAL} & Push \(0\) iff numeric input is zero; otherwise push \(1\). \\
+\code{147} & \code{OP\_ADD} & \code{(x y -- x+y)} over script numbers. \\
+\code{148} & \code{OP\_SUB} & \code{(x y -- x-y)} over script numbers. \\
+\code{154} & \code{OP\_BOOLAND} & Push \(1\) iff both numeric inputs are nonzero. \\
+\code{155} & \code{OP\_BOOLOR} & Push \(1\) iff at least one numeric input is nonzero. \\
+\code{156} & \code{OP\_NUMEQUAL} & Numeric equality. \\
+\code{157} & \code{OP\_NUMEQUALVERIFY} & Numeric equality followed by \code{VERIFY}. \\
+\code{158} & \code{OP\_NUMNOTEQUAL} & Numeric inequality. \\
+\code{159} & \code{OP\_LESSTHAN} & Numeric less-than comparison. \\
+\code{160} & \code{OP\_GREATERTHAN} & Numeric greater-than comparison. \\
+\code{161} & \code{OP\_LESSTHANOREQUAL} & Numeric less-than-or-equal comparison. \\
+\code{162} & \code{OP\_GREATERTHANOREQUAL} & Numeric greater-than-or-equal comparison. \\
+\code{163} & \code{OP\_MIN} & Push the smaller numeric input. \\
+\code{164} & \code{OP\_MAX} & Push the larger numeric input. \\
+\code{165} & \code{OP\_WITHIN} & \code{(x min max -- ok)} where \(min \le x < max\). \\
 \bottomrule
 \end{longtable}
 
@@ -208,7 +254,13 @@ Index & Opcode & Effect \\
 \code{176} & \code{OP\_NOP1} & No effect. \\
 \code{177} & \code{OP\_CHECKLOCKTIMEVERIFY / OP\_NOP2} & If active in \(R\), require \(\operatorname{LockTime}(X,n)\); otherwise no effect. \\
 \code{178} & \code{OP\_CHECKSEQUENCEVERIFY / OP\_NOP3} & If active in \(R\), require \(\operatorname{Sequence}(X,n)\); otherwise no effect. \\
-\code{179..185} & \code{OP\_NOP4..OP\_NOP10} & No effect unless redefined by active soft-fork rules. \\
+\code{179} & \code{OP\_NOP4} & No effect unless redefined by active soft-fork rules. \\
+\code{180} & \code{OP\_NOP5} & No effect unless redefined by active soft-fork rules. \\
+\code{181} & \code{OP\_NOP6} & No effect unless redefined by active soft-fork rules. \\
+\code{182} & \code{OP\_NOP7} & No effect unless redefined by active soft-fork rules. \\
+\code{183} & \code{OP\_NOP8} & No effect unless redefined by active soft-fork rules. \\
+\code{184} & \code{OP\_NOP9} & No effect unless redefined by active soft-fork rules. \\
+\code{185} & \code{OP\_NOP10} & No effect unless redefined by active soft-fork rules. \\
 \bottomrule
 \end{longtable}
 
@@ -218,12 +270,91 @@ Index & Opcode & Effect \\
 \midrule
 \code{80} & \code{OP\_RESERVED / OP\_SUCCESS80} & Reserved failure if executed outside Tapscript; Tapscript success. \\
 \code{98} & \code{OP\_VER / OP\_SUCCESS98} & Reserved failure if executed outside Tapscript; Tapscript success. \\
-\code{126..129} & \code{OP\_CAT..OP\_RIGHT / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
-\code{131..134} & \code{OP\_INVERT..OP\_XOR / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
-\code{137..138} & \code{OP\_RESERVED1..OP\_RESERVED2 / OP\_SUCCESSx} & Reserved failure if executed outside Tapscript; Tapscript success. \\
-\code{141..142} & \code{OP\_2MUL..OP\_2DIV / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
-\code{149..153} & \code{OP\_MUL..OP\_RSHIFT / OP\_SUCCESSx} & Disabled failure outside Tapscript; Tapscript success. \\
-\code{187..254} & \code{OP\_SUCCESS187..OP\_SUCCESS254} & Tapscript success; invalid outside Tapscript. \\
+\code{126} & \code{OP\_CAT / OP\_SUCCESS126} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{127} & \code{OP\_SUBSTR / OP\_SUCCESS127} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{128} & \code{OP\_LEFT / OP\_SUCCESS128} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{129} & \code{OP\_RIGHT / OP\_SUCCESS129} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{131} & \code{OP\_INVERT / OP\_SUCCESS131} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{132} & \code{OP\_AND / OP\_SUCCESS132} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{133} & \code{OP\_OR / OP\_SUCCESS133} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{134} & \code{OP\_XOR / OP\_SUCCESS134} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{137} & \code{OP\_RESERVED1 / OP\_SUCCESS137} & Reserved failure if executed outside Tapscript; Tapscript success. \\
+\code{138} & \code{OP\_RESERVED2 / OP\_SUCCESS138} & Reserved failure if executed outside Tapscript; Tapscript success. \\
+\code{141} & \code{OP\_2MUL / OP\_SUCCESS141} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{142} & \code{OP\_2DIV / OP\_SUCCESS142} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{149} & \code{OP\_MUL / OP\_SUCCESS149} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{150} & \code{OP\_DIV / OP\_SUCCESS150} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{151} & \code{OP\_MOD / OP\_SUCCESS151} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{152} & \code{OP\_LSHIFT / OP\_SUCCESS152} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{153} & \code{OP\_RSHIFT / OP\_SUCCESS153} & Disabled failure outside Tapscript; Tapscript success. \\
+\code{187} & \code{OP\_SUCCESS187} & Tapscript success; invalid outside Tapscript. \\
+\code{188} & \code{OP\_SUCCESS188} & Tapscript success; invalid outside Tapscript. \\
+\code{189} & \code{OP\_SUCCESS189} & Tapscript success; invalid outside Tapscript. \\
+\code{190} & \code{OP\_SUCCESS190} & Tapscript success; invalid outside Tapscript. \\
+\code{191} & \code{OP\_SUCCESS191} & Tapscript success; invalid outside Tapscript. \\
+\code{192} & \code{OP\_SUCCESS192} & Tapscript success; invalid outside Tapscript. \\
+\code{193} & \code{OP\_SUCCESS193} & Tapscript success; invalid outside Tapscript. \\
+\code{194} & \code{OP\_SUCCESS194} & Tapscript success; invalid outside Tapscript. \\
+\code{195} & \code{OP\_SUCCESS195} & Tapscript success; invalid outside Tapscript. \\
+\code{196} & \code{OP\_SUCCESS196} & Tapscript success; invalid outside Tapscript. \\
+\code{197} & \code{OP\_SUCCESS197} & Tapscript success; invalid outside Tapscript. \\
+\code{198} & \code{OP\_SUCCESS198} & Tapscript success; invalid outside Tapscript. \\
+\code{199} & \code{OP\_SUCCESS199} & Tapscript success; invalid outside Tapscript. \\
+\code{200} & \code{OP\_SUCCESS200} & Tapscript success; invalid outside Tapscript. \\
+\code{201} & \code{OP\_SUCCESS201} & Tapscript success; invalid outside Tapscript. \\
+\code{202} & \code{OP\_SUCCESS202} & Tapscript success; invalid outside Tapscript. \\
+\code{203} & \code{OP\_SUCCESS203} & Tapscript success; invalid outside Tapscript. \\
+\code{204} & \code{OP\_SUCCESS204} & Tapscript success; invalid outside Tapscript. \\
+\code{205} & \code{OP\_SUCCESS205} & Tapscript success; invalid outside Tapscript. \\
+\code{206} & \code{OP\_SUCCESS206} & Tapscript success; invalid outside Tapscript. \\
+\code{207} & \code{OP\_SUCCESS207} & Tapscript success; invalid outside Tapscript. \\
+\code{208} & \code{OP\_SUCCESS208} & Tapscript success; invalid outside Tapscript. \\
+\code{209} & \code{OP\_SUCCESS209} & Tapscript success; invalid outside Tapscript. \\
+\code{210} & \code{OP\_SUCCESS210} & Tapscript success; invalid outside Tapscript. \\
+\code{211} & \code{OP\_SUCCESS211} & Tapscript success; invalid outside Tapscript. \\
+\code{212} & \code{OP\_SUCCESS212} & Tapscript success; invalid outside Tapscript. \\
+\code{213} & \code{OP\_SUCCESS213} & Tapscript success; invalid outside Tapscript. \\
+\code{214} & \code{OP\_SUCCESS214} & Tapscript success; invalid outside Tapscript. \\
+\code{215} & \code{OP\_SUCCESS215} & Tapscript success; invalid outside Tapscript. \\
+\code{216} & \code{OP\_SUCCESS216} & Tapscript success; invalid outside Tapscript. \\
+\code{217} & \code{OP\_SUCCESS217} & Tapscript success; invalid outside Tapscript. \\
+\code{218} & \code{OP\_SUCCESS218} & Tapscript success; invalid outside Tapscript. \\
+\code{219} & \code{OP\_SUCCESS219} & Tapscript success; invalid outside Tapscript. \\
+\code{220} & \code{OP\_SUCCESS220} & Tapscript success; invalid outside Tapscript. \\
+\code{221} & \code{OP\_SUCCESS221} & Tapscript success; invalid outside Tapscript. \\
+\code{222} & \code{OP\_SUCCESS222} & Tapscript success; invalid outside Tapscript. \\
+\code{223} & \code{OP\_SUCCESS223} & Tapscript success; invalid outside Tapscript. \\
+\code{224} & \code{OP\_SUCCESS224} & Tapscript success; invalid outside Tapscript. \\
+\code{225} & \code{OP\_SUCCESS225} & Tapscript success; invalid outside Tapscript. \\
+\code{226} & \code{OP\_SUCCESS226} & Tapscript success; invalid outside Tapscript. \\
+\code{227} & \code{OP\_SUCCESS227} & Tapscript success; invalid outside Tapscript. \\
+\code{228} & \code{OP\_SUCCESS228} & Tapscript success; invalid outside Tapscript. \\
+\code{229} & \code{OP\_SUCCESS229} & Tapscript success; invalid outside Tapscript. \\
+\code{230} & \code{OP\_SUCCESS230} & Tapscript success; invalid outside Tapscript. \\
+\code{231} & \code{OP\_SUCCESS231} & Tapscript success; invalid outside Tapscript. \\
+\code{232} & \code{OP\_SUCCESS232} & Tapscript success; invalid outside Tapscript. \\
+\code{233} & \code{OP\_SUCCESS233} & Tapscript success; invalid outside Tapscript. \\
+\code{234} & \code{OP\_SUCCESS234} & Tapscript success; invalid outside Tapscript. \\
+\code{235} & \code{OP\_SUCCESS235} & Tapscript success; invalid outside Tapscript. \\
+\code{236} & \code{OP\_SUCCESS236} & Tapscript success; invalid outside Tapscript. \\
+\code{237} & \code{OP\_SUCCESS237} & Tapscript success; invalid outside Tapscript. \\
+\code{238} & \code{OP\_SUCCESS238} & Tapscript success; invalid outside Tapscript. \\
+\code{239} & \code{OP\_SUCCESS239} & Tapscript success; invalid outside Tapscript. \\
+\code{240} & \code{OP\_SUCCESS240} & Tapscript success; invalid outside Tapscript. \\
+\code{241} & \code{OP\_SUCCESS241} & Tapscript success; invalid outside Tapscript. \\
+\code{242} & \code{OP\_SUCCESS242} & Tapscript success; invalid outside Tapscript. \\
+\code{243} & \code{OP\_SUCCESS243} & Tapscript success; invalid outside Tapscript. \\
+\code{244} & \code{OP\_SUCCESS244} & Tapscript success; invalid outside Tapscript. \\
+\code{245} & \code{OP\_SUCCESS245} & Tapscript success; invalid outside Tapscript. \\
+\code{246} & \code{OP\_SUCCESS246} & Tapscript success; invalid outside Tapscript. \\
+\code{247} & \code{OP\_SUCCESS247} & Tapscript success; invalid outside Tapscript. \\
+\code{248} & \code{OP\_SUCCESS248} & Tapscript success; invalid outside Tapscript. \\
+\code{249} & \code{OP\_SUCCESS249} & Tapscript success; invalid outside Tapscript. \\
+\code{250} & \code{OP\_SUCCESS250} & Tapscript success; invalid outside Tapscript. \\
+\code{251} & \code{OP\_SUCCESS251} & Tapscript success; invalid outside Tapscript. \\
+\code{252} & \code{OP\_SUCCESS252} & Tapscript success; invalid outside Tapscript. \\
+\code{253} & \code{OP\_SUCCESS253} & Tapscript success; invalid outside Tapscript. \\
+\code{254} & \code{OP\_SUCCESS254} & Tapscript success; invalid outside Tapscript. \\
 \code{255} & \code{OP\_INVALIDOPCODE} & Fail. \\
 \bottomrule
 \end{longtable}

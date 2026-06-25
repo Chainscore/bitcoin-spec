@@ -13,13 +13,19 @@ LATEXMK=max_print_line=10000 latexmk $(LATEXMKOPT_$(ENGINE)) -bibtex -pdf -inter
 PDFDIR=out
 DOCVERSION ?= Draft 15
 
-.PHONY: all protocol protocol-dark clean
+.PHONY: all protocol protocol-dark book-src book clean
 
 all: protocol protocol-dark
 
 protocol: $(PDFDIR)/protocol.pdf
 
 protocol-dark: $(PDFDIR)/protocol-dark.pdf
+
+book-src: book.toml tools/build_mdbook.py $(wildcard sections/*.tex) $(wildcard assets/*.png)
+	python3 tools/build_mdbook.py
+
+book: book-src
+	mdbook build
 
 $(PDFDIR)/protocol.pdf: protocol.tex macros.tex bitcoin.bib $(wildcard sections/*.tex) $(wildcard assets/*.png)
 	printf '\\renewcommand{\\docversion}{%s}\n' "$(DOCVERSION)" > protocol.ver

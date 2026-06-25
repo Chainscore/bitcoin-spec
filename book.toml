@@ -1,0 +1,14 @@
+[book]
+title = "Bitcoin Protocol Specification"
+authors = ["Prasad Kumkar", "Chainscore Labs"]
+description = "Developer specification for Bitcoin consensus rules, transaction and block formats, Script opcodes, UTXO state transitions, proof of work, mempool, and P2P networking."
+language = "en"
+src = "book-src"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/Chainscore/bitcoin-spec"
+mathjax-support = true
+site-url = "/bitcoin-spec/"
+additional-css = ["book-src/theme/custom.css"]

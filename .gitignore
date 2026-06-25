@@ -3,6 +3,8 @@ protocol.ver
 .DS_Store
 tmp/
 out/
+book/
+book-src/
 
 # LaTeX build byproducts
 *.aux

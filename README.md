@@ -27,12 +27,17 @@ mempool policy, Bitcoin P2P network protocol, BIP reference.
 
 ## Read the specification
 
+The web edition is published at:
+
+- https://chainscore.github.io/bitcoin-spec/
+
 The canonical generated PDFs are:
 
 - `out/protocol.pdf`
 - `out/protocol-dark.pdf`
 
 The main source file is `protocol.tex`; section sources live under `sections/`.
+The mdBook source is generated into `book-src/`.
 
 ## Scope
 
@@ -61,6 +66,7 @@ On Debian-based systems, install at least:
 
 ```sh
 apt install make git latexmk texlive texlive-latex-extra texlive-fonts-recommended
+cargo install mdbook --version 0.5.2 --locked
 ```
 
 ## Building
@@ -69,6 +75,7 @@ apt install make git latexmk texlive texlive-latex-extra texlive-fonts-recommend
 make protocol
 make protocol-dark
 make all
+make book
 ```
 
 The outputs are written to:
