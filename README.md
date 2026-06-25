@@ -27,23 +27,18 @@ mempool policy, Bitcoin P2P network protocol, BIP reference.
 
 ## Read the specification
 
-The web edition is published at:
+ https://chainscore.github.io/bitcoin-spec/
 
-- https://chainscore.github.io/bitcoin-spec/
+The generated PDFs are:
 
-The canonical generated PDFs are:
-
-- `out/protocol.pdf`
-- `out/protocol-dark.pdf`
-
-The main source file is `protocol.tex`; section sources live under `sections/`.
-The mdBook source is generated into `book-src/`.
+- [Specification-Light](https://github.com/Chainscore/bitcoin-spec/blob/main/out/protocol.pdf)
+- [Specification-Dark](https://github.com/Chainscore/bitcoin-spec/blob/main/out/protocol-dark.pdf)
 
 ## Scope
 
 This repository is intended for developers, protocol engineers, researchers,
-client implementers, infrastructure teams, and reviewers who need a compact
-source of truth for Bitcoin protocol behavior.
+client implementers, infrastructure teams, and reviewers to have a
+source of truth for Bitcoin protocol.
 
 Covered areas include:
 
@@ -84,14 +79,3 @@ The outputs are written to:
 out/protocol.pdf
 out/protocol-dark.pdf
 ```
-
-Intermediate files are written to `aux/`. The generated `protocol.ver` file and
-`aux/` directory are ignored by Git.
-
-## Contribution rules
-
-- Cite source material for every normative claim.
-- Keep consensus rules separate from local mempool admission and relay behavior.
-- Mark implementation-observed behavior explicitly when it is not specified by
-  a deployed or complete BIP.
-- Do not fold draft BIPs into active protocol behavior.
